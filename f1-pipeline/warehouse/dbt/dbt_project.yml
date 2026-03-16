@@ -1,0 +1,35 @@
+# dbt_project.yml — dbt project configuration for F1 data warehouse
+#
+# This project models F1 data in Snowflake across three layers:
+#   staging/       → 1:1 mirrors of processed source tables with renaming & typing
+#   intermediate/  → joined / enriched models (e.g. driver-race facts)
+#   marts/         → final analytics-ready tables consumed by Grafana dashboards
+
+name: "f1_warehouse"
+version: "1.0.0"
+config-version: 2
+
+profile: "f1_warehouse"   # maps to ~/.dbt/profiles.yml
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  f1_warehouse:
+    staging:
+      +materialized: view
+      +schema: staging
+    intermediate:
+      +materialized: table
+      +schema: intermediate
+    marts:
+      +materialized: table
+      +schema: marts

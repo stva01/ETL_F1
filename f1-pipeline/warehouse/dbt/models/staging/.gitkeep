@@ -1,0 +1,8 @@
+-- staging/ — Source-conformed models
+-- Each file here will be a 1:1 view over a processed source table loaded
+-- into Snowflake via external stage / COPY INTO.
+-- Naming convention: stg_<source>__<table>.sql
+-- Examples:
+--   stg_kaggle__races.sql
+--   stg_openf1__laps.sql
+--   stg_jolpica__results.sql

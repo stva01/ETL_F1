@@ -1,0 +1,19 @@
+# terraform.tfvars.example — Sample variable values
+# Copy this file to terraform.tfvars and fill in real values.
+# NEVER commit terraform.tfvars to version control.
+
+# ── AWS ──────────────────────────────────────────────────────────
+aws_region        = "us-east-1"
+aws_access_key    = "YOUR_AWS_ACCESS_KEY_ID"
+aws_secret_key    = "YOUR_AWS_SECRET_ACCESS_KEY"
+s3_bucket_prefix  = "your-unique-prefix-f1"
+
+# ── Snowflake ────────────────────────────────────────────────────
+snowflake_account  = "your_account.us-east-1"
+snowflake_user     = "YOUR_SNOWFLAKE_USER"
+snowflake_password = "YOUR_SNOWFLAKE_PASSWORD"
+snowflake_role     = "SYSADMIN"
+snowflake_warehouse = "F1_WH"
+
+# ── Feature Flags ───────────────────────────────────────────────
+enable_glue_jobs = true

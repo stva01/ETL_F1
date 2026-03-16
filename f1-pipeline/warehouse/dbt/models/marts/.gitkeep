@@ -1,0 +1,9 @@
+-- marts/ — Analytics-ready business models
+-- Final tables consumed by Grafana dashboards and ad-hoc queries.
+-- Naming convention: fct_<fact>.sql  /  dim_<dimension>.sql
+-- Examples:
+--   fct_race_results.sql      (one row per driver per race)
+--   fct_pit_stops.sql         (one row per pit stop)
+--   dim_drivers.sql           (slowly changing driver dimension)
+--   dim_circuits.sql          (circuit dimension)
+--   dim_constructors.sql      (team/constructor dimension)

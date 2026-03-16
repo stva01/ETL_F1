@@ -1,0 +1,7 @@
+-- intermediate/ — Enriched and joined models
+-- These models combine staging tables to create useful intermediate
+-- datasets that are not yet final business entities.
+-- Naming convention: int_<description>.sql
+-- Examples:
+--   int_driver_race_results.sql   (join results + drivers + races)
+--   int_lap_analysis.sql          (enrich lap data with stint info)
