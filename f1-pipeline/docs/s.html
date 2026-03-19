@@ -1,0 +1,1959 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>F1 Data Warehouse — Star Schema Design</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Syne:wght@400;600;700;800&family=Syne+Mono&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #0a0a0f;
+  --ink2: #111118;
+  --ink3: #18181f;
+  --ink4: #222230;
+  --red: #ff2d55;
+  --red-dim: rgba(255,45,85,0.15);
+  --gold: #f5c518;
+  --gold-dim: rgba(245,197,24,0.12);
+  --cyan: #00e5ff;
+  --cyan-dim: rgba(0,229,255,0.1);
+  --green: #39d353;
+  --green-dim: rgba(57,211,83,0.12);
+  --purple: #bf5af2;
+  --purple-dim: rgba(191,90,242,0.12);
+  --orange: #ff9f0a;
+  --orange-dim: rgba(255,159,10,0.12);
+  --blue: #0a84ff;
+  --blue-dim: rgba(10,132,255,0.12);
+  --border: rgba(255,255,255,0.06);
+  --border-strong: rgba(255,255,255,0.12);
+  --text: #e8e8f0;
+  --text-dim: #6e6e85;
+  --text-mid: #aaaabc;
+  --mono: 'JetBrains Mono', monospace;
+  --display: 'Syne', sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--ink);
+  color: var(--text);
+  font-family: var(--display);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--ink); }
+::-webkit-scrollbar-thumb { background: var(--ink4); border-radius: 3px; }
+
+/* ── STICKY NAV ── */
+.sidenav {
+  position: fixed; left: 0; top: 0; bottom: 0;
+  width: 220px;
+  background: var(--ink2);
+  border-right: 1px solid var(--border);
+  padding: 28px 0;
+  overflow-y: auto;
+  z-index: 100;
+}
+.sidenav-logo {
+  padding: 0 20px 24px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+.sidenav-logo .f1tag {
+  display: inline-block;
+  background: var(--red);
+  color: white;
+  font-family: var(--mono);
+  font-size: 11px; font-weight: 700;
+  padding: 3px 8px;
+  letter-spacing: 2px;
+  margin-bottom: 8px;
+}
+.sidenav-logo h1 {
+  font-size: 13px; font-weight: 800;
+  letter-spacing: 0.5px; color: var(--text);
+  line-height: 1.3;
+}
+.sidenav-logo .sub { font-size: 10px; color: var(--text-dim); margin-top: 4px; font-family: var(--mono); }
+.nav-group { padding: 0 12px; margin-bottom: 6px; }
+.nav-group-label {
+  font-family: var(--mono);
+  font-size: 9px; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--text-dim);
+  padding: 8px 8px 4px;
+}
+.nav-item {
+  display: block; padding: 7px 10px;
+  font-size: 12px; color: var(--text-mid);
+  text-decoration: none;
+  border-radius: 4px;
+  transition: all 0.15s;
+  border-left: 2px solid transparent;
+}
+.nav-item:hover { background: var(--ink3); color: var(--text); }
+.nav-item.active { color: var(--cyan); border-left-color: var(--cyan); background: var(--cyan-dim); }
+.nav-item .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+
+/* ── MAIN ── */
+main {
+  margin-left: 220px;
+  padding: 48px 56px;
+  max-width: 1400px;
+}
+
+/* ── SECTIONS ── */
+.section { margin-bottom: 80px; }
+.section-header {
+  display: flex; align-items: flex-start; gap: 20px;
+  margin-bottom: 36px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+.section-num {
+  font-family: var(--mono);
+  font-size: 11px; color: var(--red);
+  background: var(--red-dim);
+  padding: 4px 10px; border-radius: 2px;
+  letter-spacing: 1px; margin-top: 6px;
+  flex-shrink: 0;
+  border: 1px solid rgba(255,45,85,0.2);
+}
+.section-title { font-size: 32px; font-weight: 800; line-height: 1.1; }
+.section-title span { color: var(--cyan); }
+.section-sub { font-size: 13px; color: var(--text-dim); margin-top: 8px; line-height: 1.5; font-family: var(--mono); }
+
+/* ── ARCH FLOW ── */
+.arch-flow {
+  display: flex; align-items: stretch; gap: 0;
+  margin-bottom: 40px;
+  overflow-x: auto;
+}
+.arch-layer {
+  flex: 1; min-width: 140px;
+  border: 1px solid var(--border);
+  border-right: none;
+  padding: 20px 16px;
+  position: relative;
+}
+.arch-layer:last-child { border-right: 1px solid var(--border); }
+.arch-layer-label {
+  font-family: var(--mono);
+  font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.arch-layer-title { font-size: 16px; font-weight: 800; margin-bottom: 8px; }
+.arch-layer-sub { font-size: 10px; color: var(--text-dim); font-family: var(--mono); line-height: 1.5; }
+.arch-arrow {
+  position: absolute; right: -16px; top: 50%;
+  transform: translateY(-50%);
+  width: 32px; height: 32px;
+  background: var(--ink3);
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 2; font-size: 12px;
+}
+.layer-bronze  { border-top: 3px solid var(--orange); }
+.layer-silver  { border-top: 3px solid #aaa; }
+.layer-gold    { border-top: 3px solid var(--gold); }
+.layer-plat    { border-top: 3px solid var(--cyan); }
+.layer-mcp     { border-top: 3px solid var(--purple); }
+
+/* ── TABLE CHIPS ── */
+.chip-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chip {
+  font-family: var(--mono);
+  font-size: 9px; padding: 3px 8px;
+  border-radius: 2px; letter-spacing: 0.5px;
+  border: 1px solid;
+}
+.chip-dim  { color: var(--cyan);   border-color: rgba(0,229,255,0.3);   background: var(--cyan-dim); }
+.chip-fact { color: var(--gold);   border-color: rgba(245,197,24,0.3);  background: var(--gold-dim); }
+.chip-mart { color: var(--green);  border-color: rgba(57,211,83,0.3);   background: var(--green-dim); }
+.chip-stg  { color: #aaa;         border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); }
+.chip-mcp  { color: var(--purple); border-color: rgba(191,90,242,0.3);  background: var(--purple-dim); }
+.chip-red  { color: var(--red);    border-color: rgba(255,45,85,0.3);   background: var(--red-dim); }
+
+/* ── SCHEMA GRID ── */
+.schema-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 28px;
+}
+.schema-grid.wide { grid-template-columns: repeat(2, 1fr); }
+.schema-grid.four { grid-template-columns: repeat(4, 1fr); }
+@media(max-width:1100px){
+  .schema-grid,.schema-grid.four { grid-template-columns: repeat(2,1fr); }
+  .schema-grid.wide { grid-template-columns: 1fr; }
+}
+
+/* ── TABLE CARD ── */
+.tbl-card {
+  background: var(--ink2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+.tbl-card:hover { border-color: var(--border-strong); }
+.tbl-card-head {
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.tbl-card-head .tbl-icon {
+  width: 28px; height: 28px; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; flex-shrink: 0;
+}
+.tbl-card-head .tbl-name {
+  font-family: var(--mono); font-size: 13px; font-weight: 600;
+  color: var(--text);
+}
+.tbl-card-head .tbl-grain {
+  font-family: var(--mono); font-size: 9px; color: var(--text-dim);
+  margin-top: 2px;
+}
+.tbl-card-head .tbl-badge {
+  margin-left: auto;
+  font-family: var(--mono); font-size: 9px; padding: 2px 7px;
+  border-radius: 2px; flex-shrink: 0;
+}
+.tbl-cols { padding: 10px 0; }
+.col-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 5px 16px;
+  transition: background 0.1s;
+}
+.col-row:hover { background: var(--ink3); }
+.col-key {
+  width: 14px; height: 14px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px;
+}
+.col-name {
+  font-family: var(--mono); font-size: 11px;
+  color: var(--text); flex: 1;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.col-name.pk { color: var(--gold); }
+.col-name.fk { color: var(--cyan); }
+.col-name.idx { color: var(--green); }
+.col-type {
+  font-family: var(--mono); font-size: 9px; color: var(--text-dim);
+  background: var(--ink3); padding: 1px 6px; border-radius: 2px;
+  flex-shrink: 0;
+}
+.col-note { font-size: 9px; color: var(--text-dim); flex-shrink: 0; }
+.col-divider { height: 1px; background: var(--border); margin: 4px 16px; }
+
+/* ── DDL BLOCK ── */
+.code-block {
+  background: var(--ink2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--cyan);
+  padding: 20px 24px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-x: auto;
+  margin-bottom: 20px;
+  white-space: pre;
+}
+.code-block.dbt { border-left-color: var(--green); }
+.code-block.mart { border-left-color: var(--gold); }
+.code-block.mcp { border-left-color: var(--purple); }
+.code-block .kw { color: var(--red); }
+.code-block .fn { color: var(--purple); }
+.code-block .type { color: var(--cyan); }
+.code-block .str { color: var(--gold); }
+.code-block .cmt { color: var(--text-dim); font-style: italic; }
+.code-block .tbl { color: var(--green); }
+.code-block .col { color: var(--text); }
+.code-block .num { color: var(--orange); }
+
+/* ── INFO BOX ── */
+.info-box {
+  background: var(--ink2);
+  border: 1px solid var(--border);
+  padding: 20px 24px;
+  margin-bottom: 20px;
+}
+.info-box.cyan  { border-left: 3px solid var(--cyan);  background: var(--cyan-dim); }
+.info-box.gold  { border-left: 3px solid var(--gold);  background: var(--gold-dim); }
+.info-box.green { border-left: 3px solid var(--green); background: var(--green-dim); }
+.info-box.purple{ border-left: 3px solid var(--purple);background: var(--purple-dim);}
+.info-box.red   { border-left: 3px solid var(--red);   background: var(--red-dim); }
+.info-box h4 {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 1.5px;
+  text-transform: uppercase; margin-bottom: 10px;
+}
+.info-box ul { padding-left: 20px; }
+.info-box li { font-size: 13px; color: var(--text-mid); margin-bottom: 6px; line-height: 1.5; }
+.info-box li strong { color: var(--text); }
+.info-box p { font-size: 13px; color: var(--text-mid); line-height: 1.6; }
+
+/* ── ERD SVG WRAP ── */
+.erd-wrap {
+  background: var(--ink2);
+  border: 1px solid var(--border);
+  padding: 24px;
+  overflow-x: auto;
+  margin-bottom: 24px;
+}
+.erd-wrap svg { min-width: 900px; }
+
+/* ── DBT TREE ── */
+.dbt-tree {
+  background: var(--ink2); border: 1px solid var(--border);
+  padding: 24px; font-family: var(--mono); font-size: 12px;
+  line-height: 2; overflow-x: auto;
+}
+.dbt-tree .dir { color: var(--cyan); }
+.dbt-tree .file { color: var(--text-mid); }
+.dbt-tree .file.dim { color: var(--cyan); }
+.dbt-tree .file.fact { color: var(--gold); }
+.dbt-tree .file.mart { color: var(--green); }
+.dbt-tree .file.stg { color: #aaa; }
+.dbt-tree .file.mcp { color: var(--purple); }
+.dbt-tree .file.src { color: var(--orange); }
+
+/* ── GRID 2 ── */
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+@media(max-width:900px){ .g2 { grid-template-columns: 1fr; } }
+
+/* ── TAG ROW ── */
+.tag-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.tag {
+  font-family: var(--mono); font-size: 10px;
+  padding: 4px 10px; border-radius: 3px;
+  border: 1px solid var(--border-strong); color: var(--text-dim);
+}
+
+/* ── PARTITION TABLE ── */
+.part-table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--mono); }
+.part-table th {
+  background: var(--ink3); padding: 10px 14px; text-align: left;
+  font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--text-dim); border-bottom: 1px solid var(--border);
+}
+.part-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text-mid); vertical-align: top; }
+.part-table td:first-child { color: var(--cyan); }
+.part-table tr:hover td { background: var(--ink3); }
+
+/* ── HERO ── */
+.doc-hero {
+  padding: 0 0 60px 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 60px;
+}
+.doc-hero .eyebrow {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 3px;
+  text-transform: uppercase; color: var(--red);
+  margin-bottom: 16px;
+}
+.doc-hero h1 {
+  font-size: 52px; font-weight: 800; line-height: 1.05;
+  margin-bottom: 20px;
+}
+.doc-hero h1 .accent { color: var(--cyan); }
+.doc-hero p { font-size: 15px; color: var(--text-dim); max-width: 680px; line-height: 1.7; margin-bottom: 28px; }
+.meta-row { display: flex; flex-wrap: wrap; gap: 24px; }
+.meta-item { display: flex; flex-direction: column; gap: 4px; }
+.meta-item .mv { font-family: var(--mono); font-size: 22px; font-weight: 700; color: var(--text); }
+.meta-item .ml { font-family: var(--mono); font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dim); }
+
+/* ── SEMANTIC TABLE ── */
+.sem-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.sem-table th {
+  background: var(--ink3); padding: 10px 14px; text-align: left;
+  font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--text-dim); border-bottom: 1px solid var(--border);
+  font-family: var(--mono);
+}
+.sem-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); font-family: var(--mono); vertical-align: top; }
+.sem-table td:first-child { color: var(--cyan); font-weight: 600; }
+.sem-table td:nth-child(2) { color: var(--text-mid); }
+.sem-table td:nth-child(3) { color: var(--text-dim); font-size: 11px; line-height: 1.5; }
+.sem-table tr:hover td { background: var(--ink3); }
+
+@media(max-width:768px){
+  .sidenav { display: none; }
+  main { margin-left: 0; padding: 24px 16px; }
+  .doc-hero h1 { font-size: 32px; }
+  .arch-flow { flex-direction: column; }
+  .arch-layer { border-right: 1px solid var(--border); border-bottom: none; }
+  .schema-grid, .schema-grid.wide, .schema-grid.four { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- SIDENAV -->
+<nav class="sidenav">
+  <div class="sidenav-logo">
+    <div class="f1tag">F1 DWH</div>
+    <h1>Star Schema<br>Design Spec</h1>
+    <div class="sub">v2.0 · 2025</div>
+  </div>
+  <div class="nav-group">
+    <div class="nav-group-label">Overview</div>
+    <a href="#arch" class="nav-item active"><span class="dot" style="background:var(--orange)"></span>Architecture</a>
+    <a href="#principles" class="nav-item"><span class="dot" style="background:var(--red)"></span>Principles</a>
+  </div>
+  <div class="nav-group">
+    <div class="nav-group-label">Schema Layers</div>
+    <a href="#staging" class="nav-item"><span class="dot" style="background:#aaa"></span>Staging (stg_)</a>
+    <a href="#dimensions" class="nav-item"><span class="dot" style="background:var(--cyan)"></span>Dimensions (dim_)</a>
+    <a href="#facts" class="nav-item"><span class="dot" style="background:var(--gold)"></span>Facts (fact_)</a>
+    <a href="#erd" class="nav-item"><span class="dot" style="background:var(--red)"></span>ERD Diagram</a>
+  </div>
+  <div class="nav-group">
+    <div class="nav-group-label">dbt</div>
+    <a href="#dbt-structure" class="nav-item"><span class="dot" style="background:var(--green)"></span>Project Structure</a>
+    <a href="#dbt-models" class="nav-item"><span class="dot" style="background:var(--green)"></span>Model SQL</a>
+  </div>
+  <div class="nav-group">
+    <div class="nav-group-label">Marts</div>
+    <a href="#marts" class="nav-item"><span class="dot" style="background:var(--green)"></span>mart_ Tables</a>
+    <a href="#mart-sql" class="nav-item"><span class="dot" style="background:var(--green)"></span>Mart SQL</a>
+  </div>
+  <div class="nav-group">
+    <div class="nav-group-label">Cost & MCP</div>
+    <a href="#partitioning" class="nav-item"><span class="dot" style="background:var(--gold)"></span>Partitioning</a>
+    <a href="#mcp" class="nav-item"><span class="dot" style="background:var(--purple)"></span>MCP / AI Layer</a>
+    <a href="#ingestion" class="nav-item"><span class="dot" style="background:var(--orange)"></span>Ingestion Flow</a>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main>
+
+<!-- HERO -->
+<div class="doc-hero">
+  <div class="eyebrow">Formula 1 · Data Warehouse Design</div>
+  <h1>F1 <span class="accent">Star Schema</span><br>Architecture</h1>
+  <p>A production-grade Medallion + Star Schema design for the F1 World Championship dataset. Covers PySpark ingestion from S3, dbt transformation layers, cost-optimised warehouse tables, pre-aggregated data marts, and an AI-queryable semantic layer for MCP-powered insights.</p>
+  <div class="meta-row">
+    <div class="meta-item"><div class="mv">5</div><div class="ml">Schema Layers</div></div>
+    <div class="meta-item"><div class="mv">7</div><div class="ml">Dim Tables</div></div>
+    <div class="meta-item"><div class="mv">6</div><div class="ml">Fact Tables</div></div>
+    <div class="meta-item"><div class="mv">9</div><div class="ml">Data Marts</div></div>
+    <div class="meta-item"><div class="mv">1</div><div class="ml">AI Semantic Layer</div></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 1. ARCHITECTURE -->
+<!-- ═══════════════════════════════════════════════════ -->
+<section class="section" id="arch">
+  <div class="section-header">
+    <div class="section-num">01</div>
+    <div>
+      <div class="section-title">Medallion <span>Architecture</span></div>
+      <div class="section-sub">S3 → PySpark → dbt → Warehouse → Marts → MCP</div>
+    </div>
+  </div>
+
+  <div class="arch-flow">
+    <div class="arch-layer layer-bronze">
+      <div class="arch-layer-label" style="color:var(--orange)">BRONZE · S3 Raw</div>
+      <div class="arch-layer-title" style="color:var(--orange)">Raw Zone</div>
+      <div class="arch-layer-sub">Kaggle CSVs + live race feeds.<br>Append-only. No transforms.</div>
+      <div class="chip-list">
+        <span class="chip chip-stg">circuits.csv</span>
+        <span class="chip chip-stg">drivers.csv</span>
+        <span class="chip chip-stg">races.csv</span>
+        <span class="chip chip-stg">results.csv</span>
+        <span class="chip chip-stg">qualifying.csv</span>
+        <span class="chip chip-stg">pit_stops.csv</span>
+        <span class="chip chip-stg">lap_times.csv</span>
+        <span class="chip chip-stg">standings.csv</span>
+      </div>
+      <div class="arch-arrow">→</div>
+    </div>
+    <div class="arch-layer layer-silver" style="border-left:none">
+      <div class="arch-layer-label" style="color:#aaa">SILVER · Staging</div>
+      <div class="arch-layer-title" style="color:#ccc">PySpark + dbt stg_</div>
+      <div class="arch-layer-sub">Cast types, strip nulls,<br>deduplicate, add audit cols.</div>
+      <div class="chip-list">
+        <span class="chip chip-stg">stg_drivers</span>
+        <span class="chip chip-stg">stg_races</span>
+        <span class="chip chip-stg">stg_results</span>
+        <span class="chip chip-stg">stg_qualifying</span>
+        <span class="chip chip-stg">stg_pit_stops</span>
+        <span class="chip chip-stg">stg_lap_times</span>
+      </div>
+      <div class="arch-arrow">→</div>
+    </div>
+    <div class="arch-layer layer-gold" style="border-left:none">
+      <div class="arch-layer-label" style="color:var(--gold)">GOLD · Core DWH</div>
+      <div class="arch-layer-title" style="color:var(--gold)">Star Schema</div>
+      <div class="arch-layer-sub">Conformed dims + immutable facts.<br>SCD2 where needed.</div>
+      <div class="chip-list">
+        <span class="chip chip-dim">dim_driver</span>
+        <span class="chip chip-dim">dim_circuit</span>
+        <span class="chip chip-dim">dim_constructor</span>
+        <span class="chip chip-dim">dim_date</span>
+        <span class="chip chip-fact">fact_race_result</span>
+        <span class="chip chip-fact">fact_qualifying</span>
+        <span class="chip chip-fact">fact_pit_stop</span>
+        <span class="chip chip-fact">fact_lap_time</span>
+      </div>
+      <div class="arch-arrow">→</div>
+    </div>
+    <div class="arch-layer layer-plat" style="border-left:none">
+      <div class="arch-layer-label" style="color:var(--cyan)">PLATINUM · Marts</div>
+      <div class="arch-layer-title" style="color:var(--cyan)">Data Marts</div>
+      <div class="arch-layer-sub">Pre-aggregated for dashboard.<br>Materialised views or tables.</div>
+      <div class="chip-list">
+        <span class="chip chip-mart">mart_driver_career</span>
+        <span class="chip chip-mart">mart_constructor</span>
+        <span class="chip chip-mart">mart_season_summary</span>
+        <span class="chip chip-mart">mart_circuit_stats</span>
+        <span class="chip chip-mart">mart_race_summary</span>
+        <span class="chip chip-mart">mart_head_to_head</span>
+        <span class="chip chip-mart">mart_records</span>
+      </div>
+      <div class="arch-arrow">→</div>
+    </div>
+    <div class="arch-layer layer-mcp" style="border-left:none">
+      <div class="arch-layer-label" style="color:var(--purple)">AI · MCP Layer</div>
+      <div class="arch-layer-title" style="color:var(--purple)">Semantic + AI</div>
+      <div class="arch-layer-sub">LLM-queryable context tables,<br>semantic labels, NL interface.</div>
+      <div class="chip-list">
+        <span class="chip chip-mcp">semantic_catalog</span>
+        <span class="chip chip-mcp">mart_ai_context</span>
+        <span class="chip chip-mcp">mcp_query_log</span>
+        <span class="chip chip-mcp">nl_prompt_store</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="info-box cyan">
+    <h4>⚡ Technology Stack</h4>
+    <ul>
+      <li><strong>Storage:</strong> AWS S3 (Bronze/Silver raw files) · Delta Lake or Iceberg format on Parquet</li>
+      <li><strong>Processing:</strong> PySpark on EMR / Databricks for initial load &amp; incremental merges</li>
+      <li><strong>Transformation:</strong> dbt Core / Cloud — staging → core → marts, full lineage graph</li>
+      <li><strong>Warehouse:</strong> Snowflake / BigQuery / Redshift (star schema in Gold layer)</li>
+      <li><strong>Orchestration:</strong> Apache Airflow or Prefect — DAG triggers on S3 event after each race</li>
+      <li><strong>AI / MCP:</strong> Anthropic Claude + MCP server reading semantic tables for natural-language insights</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 2. PRINCIPLES -->
+<!-- ═══════════════════════════════════════════════════ -->
+<section class="section" id="principles">
+  <div class="section-header">
+    <div class="section-num">02</div>
+    <div>
+      <div class="section-title">Design <span>Principles</span></div>
+      <div class="section-sub">Decisions that drive every table definition below</div>
+    </div>
+  </div>
+
+  <div class="g2">
+    <div class="info-box red">
+      <h4>💸 Cost Reduction Strategy</h4>
+      <ul>
+        <li><strong>Partition by race_year + round:</strong> Queries for a single season scan only that partition — not 75 years of data.</li>
+        <li><strong>Cluster fact tables</strong> by driver_key and constructor_key — most dashboard queries filter on one of these.</li>
+        <li><strong>Materialise marts</strong> as physical tables, not views — the dashboard hits pre-computed numbers, never re-aggregating 1M+ lap rows.</li>
+        <li><strong>fact_lap_time is the largest table</strong> (billions of rows) — partition by year and cluster by race_key. Keep a separate <code>fact_lap_summary</code> mart for typical queries.</li>
+        <li><strong>Cold storage</strong> for raw S3 files: S3 Glacier after 30 days; only Gold/Platinum tables stay in the hot warehouse.</li>
+      </ul>
+    </div>
+    <div class="info-box gold">
+      <h4>📐 Star Schema Conventions</h4>
+      <ul>
+        <li><strong>Surrogate keys</strong> on all dims (BIGINT auto-increment). Never join on business keys in prod queries.</li>
+        <li><strong>Conformed dimensions:</strong> dim_driver is shared across facts. One source of truth.</li>
+        <li><strong>SCD Type 2</strong> on dim_constructor (team name/nationality can change — see Benetton→Renault→Lotus→Renault).</li>
+        <li><strong>Grain is explicit:</strong> Every fact table has a grain comment in DDL and in the dbt model YAML.</li>
+        <li><strong>No NULLs in FK columns</strong> — use a "Unknown" surrogate key (−1) for late-arriving dims.</li>
+        <li><strong>Immutable facts:</strong> Historical race results never change. Only standings facts may be overwritten.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="g2">
+    <div class="info-box green">
+      <h4>🔄 Incremental Load Pattern</h4>
+      <ul>
+        <li>After each race: S3 drop triggers Airflow DAG → PySpark reads new CSVs → MERGE into staging tables (upsert on natural key).</li>
+        <li>dbt runs in <code>--select tag:incremental</code> mode — only rebuilds models downstream of changed source tables.</li>
+        <li>Fact tables use dbt <code>incremental</code> materialisation with <code>unique_key = result_id</code>. New rows append; corrected rows merge.</li>
+        <li>Marts rebuild fully after each race batch (cheap — they're aggregations of bounded-size data).</li>
+      </ul>
+    </div>
+    <div class="info-box purple">
+      <h4>🤖 MCP / AI Design Constraints</h4>
+      <ul>
+        <li>Every mart table has a <strong>human-readable description</strong> in the <code>semantic_catalog</code> table.</li>
+        <li>The <code>mart_ai_context</code> wide table is a <strong>single-row-per-driver</strong> denormalised view — designed to fit in an LLM context window for "tell me about Hamilton" type queries.</li>
+        <li>A <code>nl_prompt_store</code> table maps common question patterns to pre-built SQL, reducing AI hallucination on schema details.</li>
+        <li>All column names are <strong>fully spelled out</strong> (no abbreviations) so the MCP layer can describe them without a separate lookup.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 3. STAGING -->
+<!-- ═══════════════════════════════════════════════════ -->
+<section class="section" id="staging">
+  <div class="section-header">
+    <div class="section-num">03</div>
+    <div>
+      <div class="section-title"><span>Staging</span> Layer — stg_</div>
+      <div class="section-sub">Silver layer. PySpark read from S3 → dbt staging models. Type casting, null handling, deduplication.</div>
+    </div>
+  </div>
+
+  <div class="code-block"><span class="cmt">-- ──────────────────────────────────────────────────────────────────
+-- stg_drivers  (source: drivers.csv, updated_drivers feed)
+-- ──────────────────────────────────────────────────────────────────</span>
+<span class="kw">CREATE OR REPLACE TABLE</span> <span class="tbl">staging.stg_drivers</span> (
+    <span class="col">driver_id</span>          <span class="type">INT</span>         <span class="kw">NOT NULL</span>,         <span class="cmt">-- Kaggle source PK</span>
+    <span class="col">driver_ref</span>         <span class="type">VARCHAR(50)</span> <span class="kw">NOT NULL</span>,
+    <span class="col">number</span>             <span class="type">INT</span>,
+    <span class="col">code</span>               <span class="type">CHAR(3)</span>,              <span class="cmt">-- e.g. HAM, VER</span>
+    <span class="col">forename</span>           <span class="type">VARCHAR(100)</span><span class="kw">NOT NULL</span>,
+    <span class="col">surname</span>            <span class="type">VARCHAR(100)</span><span class="kw">NOT NULL</span>,
+    <span class="col">date_of_birth</span>      <span class="type">DATE</span>,
+    <span class="col">nationality</span>        <span class="type">VARCHAR(60)</span>,
+    <span class="col">wikipedia_url</span>      <span class="type">TEXT</span>,
+    <span class="col">_source_file</span>       <span class="type">VARCHAR(200)</span>,         <span class="cmt">-- audit: s3 path</span>
+    <span class="col">_loaded_at</span>         <span class="type">TIMESTAMP</span>  <span class="kw">DEFAULT CURRENT_TIMESTAMP</span>,
+    <span class="col">_is_current</span>        <span class="type">BOOLEAN</span>    <span class="kw">DEFAULT TRUE</span>
+);
+
+<span class="cmt">-- ──────────────────────────────────────────────────────────────────
+-- stg_races  (source: races.csv + post-race feed)
+-- ──────────────────────────────────────────────────────────────────</span>
+<span class="kw">CREATE OR REPLACE TABLE</span> <span class="tbl">staging.stg_races</span> (
+    <span class="col">race_id</span>            <span class="type">INT</span>         <span class="kw">NOT NULL</span>,
+    <span class="col">year</span>               <span class="type">SMALLINT</span>    <span class="kw">NOT NULL</span>,
+    <span class="col">round</span>              <span class="type">TINYINT</span>     <span class="kw">NOT NULL</span>,
+    <span class="col">circuit_id</span>         <span class="type">INT</span>         <span class="kw">NOT NULL</span>,
+    <span class="col">race_name</span>          <span class="type">VARCHAR(150)</span>,
+    <span class="col">race_date</span>          <span class="type">DATE</span>,
+    <span class="col">race_time</span>          <span class="type">TIME</span>,
+    <span class="col">fp1_date</span>           <span class="type">DATE</span>,   <span class="col">fp2_date</span> <span class="type">DATE</span>,   <span class="col">fp3_date</span> <span class="type">DATE</span>,
+    <span class="col">quali_date</span>         <span class="type">DATE</span>,
+    <span class="col">sprint_date</span>        <span class="type">DATE</span>,                <span class="cmt">-- NULL if no sprint</span>
+    <span class="col">wikipedia_url</span>      <span class="type">TEXT</span>,
+    <span class="col">_loaded_at</span>         <span class="type">TIMESTAMP</span>
+);
+
+<span class="cmt">-- Similarly: stg_results, stg_qualifying, stg_pit_stops, stg_lap_times,
+-- stg_driver_standings, stg_constructor_standings, stg_constructors, stg_circuits
+-- All follow same pattern: source cols + _source_file + _loaded_at + _is_current</span>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 4. DIMENSIONS -->
+<!-- ═══════════════════════════════════════════════════ -->
+<section class="section" id="dimensions">
+  <div class="section-header">
+    <div class="section-num">04</div>
+    <div>
+      <div class="section-title">Dimension <span>Tables</span></div>
+      <div class="section-sub">7 conformed dimensions. Surrogate keys. SCD2 on dim_constructor. Optimised for JOIN performance.</div>
+    </div>
+  </div>
+
+  <div class="schema-grid">
+    <!-- dim_driver -->
+    <div class="tbl-card">
+      <div class="tbl-card-head">
+        <div class="tbl-icon" style="background:var(--cyan-dim)">👤</div>
+        <div><div class="tbl-name">dim_driver</div><div class="tbl-grain">1 row per driver</div></div>
+        <span class="tbl-badge chip chip-dim">DIM</span>
+      </div>
+      <div class="tbl-cols">
+        <div class="col-row"><div class="col-key">🔑</div><div class="col-name pk">driver_key</div><div class="col-type">BIGINT</div><div class="col-note">SK</div></div>
+        <div class="col-row"><div class="col-key">🔗</div><div class="col-name fk">driver_id</div><div class="col-type">INT</div><div class="col-note">NK</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">driver_ref</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">driver_code</div><div class="col-type">CHAR(3)</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">full_name</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">forename</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">surname</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">date_of_birth</div><div class="col-type">DATE</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">nationality</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key">📊</div><div class="col-name idx">nationality_code</div><div class="col-type">CHAR(3)</div><div class="col-note">IDX</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">flag_emoji</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">permanent_number</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">is_active</div><div class="col-type">BOOLEAN</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">debut_year</div><div class="col-type">SMALLINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">final_year</div><div class="col-type">SMALLINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">wikipedia_url</div><div class="col-type">TEXT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">dw_created_at</div><div class="col-type">TIMESTAMP</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">dw_updated_at</div><div class="col-type">TIMESTAMP</div></div>
+      </div>
+    </div>
+
+    <!-- dim_constructor -->
+    <div class="tbl-card">
+      <div class="tbl-card-head">
+        <div class="tbl-icon" style="background:var(--cyan-dim)">🏎️</div>
+        <div><div class="tbl-name">dim_constructor</div><div class="tbl-grain">1 row per constructor version (SCD2)</div></div>
+        <span class="tbl-badge chip chip-dim">SCD2</span>
+      </div>
+      <div class="tbl-cols">
+        <div class="col-row"><div class="col-key">🔑</div><div class="col-name pk">constructor_key</div><div class="col-type">BIGINT</div><div class="col-note">SK</div></div>
+        <div class="col-row"><div class="col-key">🔗</div><div class="col-name fk">constructor_id</div><div class="col-type">INT</div><div class="col-note">NK</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">constructor_ref</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">constructor_name</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">nationality</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">parent_team</div><div class="col-type">VARCHAR</div><div class="col-note">e.g. Renault→Alpine</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">is_active</div><div class="col-type">BOOLEAN</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">debut_year</div><div class="col-type">SMALLINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">scd_valid_from</div><div class="col-type">DATE</div><div class="col-note">SCD2</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">scd_valid_to</div><div class="col-type">DATE</div><div class="col-note">SCD2</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">scd_is_current</div><div class="col-type">BOOLEAN</div><div class="col-note">SCD2</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">wikipedia_url</div><div class="col-type">TEXT</div></div>
+      </div>
+    </div>
+
+    <!-- dim_circuit -->
+    <div class="tbl-card">
+      <div class="tbl-card-head">
+        <div class="tbl-icon" style="background:var(--cyan-dim)">🗺️</div>
+        <div><div class="tbl-name">dim_circuit</div><div class="tbl-grain">1 row per circuit</div></div>
+        <span class="tbl-badge chip chip-dim">DIM</span>
+      </div>
+      <div class="tbl-cols">
+        <div class="col-row"><div class="col-key">🔑</div><div class="col-name pk">circuit_key</div><div class="col-type">BIGINT</div><div class="col-note">SK</div></div>
+        <div class="col-row"><div class="col-key">🔗</div><div class="col-name fk">circuit_id</div><div class="col-type">INT</div><div class="col-note">NK</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">circuit_ref</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">circuit_name</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">location_city</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key">📊</div><div class="col-name idx">country</div><div class="col-type">VARCHAR</div><div class="col-note">IDX</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">country_code</div><div class="col-type">CHAR(3)</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">latitude</div><div class="col-type">DECIMAL(9,6)</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">longitude</div><div class="col-type">DECIMAL(9,6)</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">altitude_metres</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">circuit_type</div><div class="col-type">VARCHAR</div><div class="col-note">street/permanent</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">wikipedia_url</div><div class="col-type">TEXT</div></div>
+      </div>
+    </div>
+
+    <!-- dim_season -->
+    <div class="tbl-card">
+      <div class="tbl-card-head">
+        <div class="tbl-icon" style="background:var(--cyan-dim)">📅</div>
+        <div><div class="tbl-name">dim_season</div><div class="tbl-grain">1 row per F1 season</div></div>
+        <span class="tbl-badge chip chip-dim">DIM</span>
+      </div>
+      <div class="tbl-cols">
+        <div class="col-row"><div class="col-key">🔑</div><div class="col-name pk">season_year</div><div class="col-type">SMALLINT</div><div class="col-note">PK (natural)</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">total_races</div><div class="col-type">TINYINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">has_sprint_races</div><div class="col-type">BOOLEAN</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">points_for_win</div><div class="col-type">TINYINT</div><div class="col-note">era-aware</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">era_label</div><div class="col-type">VARCHAR</div><div class="col-note">e.g. Turbo, V10, Hybrid</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">regulation_cycle</div><div class="col-type">VARCHAR</div><div class="col-note">1950/1966/1983/2022...</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">driver_champion_id</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">constructor_champion_id</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">wikipedia_url</div><div class="col-type">TEXT</div></div>
+      </div>
+    </div>
+
+    <!-- dim_date -->
+    <div class="tbl-card">
+      <div class="tbl-card-head">
+        <div class="tbl-icon" style="background:var(--cyan-dim)">🗓️</div>
+        <div><div class="tbl-name">dim_date</div><div class="tbl-grain">1 row per calendar day</div></div>
+        <span class="tbl-badge chip chip-dim">DIM</span>
+      </div>
+      <div class="tbl-cols">
+        <div class="col-row"><div class="col-key">🔑</div><div class="col-name pk">date_key</div><div class="col-type">INT</div><div class="col-note">YYYYMMDD</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">full_date</div><div class="col-type">DATE</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">year</div><div class="col-type">SMALLINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">quarter</div><div class="col-type">TINYINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">month_number</div><div class="col-type">TINYINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">month_name</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">day_of_week</div><div class="col-type">TINYINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">day_name</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">is_race_weekend</div><div class="col-type">BOOLEAN</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">season_round</div><div class="col-type">TINYINT</div></div>
+      </div>
+    </div>
+
+    <!-- dim_status -->
+    <div class="tbl-card">
+      <div class="tbl-card-head">
+        <div class="tbl-icon" style="background:var(--cyan-dim)">🏁</div>
+        <div><div class="tbl-name">dim_race_status</div><div class="tbl-grain">1 row per result status code</div></div>
+        <span class="tbl-badge chip chip-dim">DIM</span>
+      </div>
+      <div class="tbl-cols">
+        <div class="col-row"><div class="col-key">🔑</div><div class="col-name pk">status_key</div><div class="col-type">INT</div><div class="col-note">SK</div></div>
+        <div class="col-row"><div class="col-key">🔗</div><div class="col-name fk">status_id</div><div class="col-type">INT</div><div class="col-note">NK (Kaggle)</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">status_label</div><div class="col-type">VARCHAR</div><div class="col-note">e.g. Finished, Engine</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">status_category</div><div class="col-type">VARCHAR</div><div class="col-note">Finished / DNF / DNS / DSQ</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">is_classified</div><div class="col-type">BOOLEAN</div><div class="col-note">scored points?</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">is_mechanical</div><div class="col-type">BOOLEAN</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">is_accident</div><div class="col-type">BOOLEAN</div></div>
+      </div>
+    </div>
+
+    <!-- dim_race (bridge) -->
+    <div class="tbl-card">
+      <div class="tbl-card-head">
+        <div class="tbl-icon" style="background:var(--cyan-dim)">🏆</div>
+        <div><div class="tbl-name">dim_race</div><div class="tbl-grain">1 row per Grand Prix event</div></div>
+        <span class="tbl-badge chip chip-dim">DIM</span>
+      </div>
+      <div class="tbl-cols">
+        <div class="col-row"><div class="col-key">🔑</div><div class="col-name pk">race_key</div><div class="col-type">BIGINT</div><div class="col-note">SK</div></div>
+        <div class="col-row"><div class="col-key">🔗</div><div class="col-name fk">race_id</div><div class="col-type">INT</div><div class="col-note">NK</div></div>
+        <div class="col-row"><div class="col-key">📊</div><div class="col-name idx">season_year</div><div class="col-type">SMALLINT</div><div class="col-note">FK + PARTITION</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">round_number</div><div class="col-type">TINYINT</div></div>
+        <div class="col-row"><div class="col-key">🔗</div><div class="col-name fk">circuit_key</div><div class="col-type">BIGINT</div><div class="col-note">FK</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">race_name</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">race_date</div><div class="col-type">DATE</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">race_time_utc</div><div class="col-type">TIME</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">is_sprint_weekend</div><div class="col-type">BOOLEAN</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">race_laps</div><div class="col-type">TINYINT</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 5. FACTS -->
+<!-- ═══════════════════════════════════════════════════ -->
+<section class="section" id="facts">
+  <div class="section-header">
+    <div class="section-num">05</div>
+    <div>
+      <div class="section-title">Fact <span>Tables</span></div>
+      <div class="section-sub">6 immutable fact tables. Explicit grain. Partitioned by year for cost control.</div>
+    </div>
+  </div>
+
+  <div class="schema-grid">
+    <!-- fact_race_result -->
+    <div class="tbl-card">
+      <div class="tbl-card-head">
+        <div class="tbl-icon" style="background:var(--gold-dim)">🏁</div>
+        <div><div class="tbl-name">fact_race_result</div><div class="tbl-grain">1 row per driver × race start</div></div>
+        <span class="tbl-badge chip chip-fact">FACT</span>
+      </div>
+      <div class="tbl-cols">
+        <div class="col-row"><div class="col-key">🔑</div><div class="col-name pk">result_key</div><div class="col-type">BIGINT</div><div class="col-note">SK</div></div>
+        <div class="col-row"><div class="col-key">🔗</div><div class="col-name fk">race_key</div><div class="col-type">BIGINT</div><div class="col-note">FK</div></div>
+        <div class="col-row"><div class="col-key">🔗</div><div class="col-name fk">driver_key</div><div class="col-type">BIGINT</div><div class="col-note">FK · CLUSTER</div></div>
+        <div class="col-row"><div class="col-key">🔗</div><div class="col-name fk">constructor_key</div><div class="col-type">BIGINT</div><div class="col-note">FK · CLUSTER</div></div>
+        <div class="col-row"><div class="col-key">🔗</div><div class="col-name fk">circuit_key</div><div class="col-type">BIGINT</div><div class="col-note">FK</div></div>
+        <div class="col-row"><div class="col-key">🔗</div><div class="col-name fk">status_key</div><div class="col-type">INT</div><div class="col-note">FK</div></div>
+        <div class="col-row"><div class="col-key">📊</div><div class="col-name idx">season_year</div><div class="col-type">SMALLINT</div><div class="col-note">PARTITION</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">grid_position</div><div class="col-type">TINYINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">finish_position</div><div class="col-type">TINYINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">points_scored</div><div class="col-type">DECIMAL(5,2)</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">laps_completed</div><div class="col-type">TINYINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">race_time_milliseconds</div><div class="col-type">BIGINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">fastest_lap_rank</div><div class="col-type">TINYINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">fastest_lap_time_ms</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">fastest_lap_speed_kph</div><div class="col-type">DECIMAL(6,3)</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">is_fastest_lap_point</div><div class="col-type">BOOLEAN</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">positions_gained</div><div class="col-type">SMALLINT</div><div class="col-note">finish-grid delta</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">is_winner</div><div class="col-type">BOOLEAN</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">is_podium</div><div class="col-type">BOOLEAN</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">is_points_finish</div><div class="col-type">BOOLEAN</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">is_sprint</div><div class="col-type">BOOLEAN</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">dw_inserted_at</div><div class="col-type">TIMESTAMP</div></div>
+      </div>
+    </div>
+
+    <!-- fact_qualifying -->
+    <div class="tbl-card">
+      <div class="tbl-card-head">
+        <div class="tbl-icon" style="background:var(--gold-dim)">⏱️</div>
+        <div><div class="tbl-name">fact_qualifying</div><div class="tbl-grain">1 row per driver × qualifying session</div></div>
+        <span class="tbl-badge chip chip-fact">FACT</span>
+      </div>
+      <div class="tbl-cols">
+        <div class="col-row"><div class="col-key">🔑</div><div class="col-name pk">qualify_key</div><div class="col-type">BIGINT</div><div class="col-note">SK</div></div>
+        <div class="col-row"><div class="col-key">🔗</div><div class="col-name fk">race_key</div><div class="col-type">BIGINT</div><div class="col-note">FK</div></div>
+        <div class="col-row"><div class="col-key">🔗</div><div class="col-name fk">driver_key</div><div class="col-type">BIGINT</div><div class="col-note">FK · CLUSTER</div></div>
+        <div class="col-row"><div class="col-key">🔗</div><div class="col-name fk">constructor_key</div><div class="col-type">BIGINT</div><div class="col-note">FK</div></div>
+        <div class="col-row"><div class="col-key">📊</div><div class="col-name idx">season_year</div><div class="col-type">SMALLINT</div><div class="col-note">PARTITION</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">qualify_position</div><div class="col-type">TINYINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">q1_time_milliseconds</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">q2_time_milliseconds</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">q3_time_milliseconds</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">best_time_milliseconds</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">gap_to_pole_ms</div><div class="col-type">INT</div><div class="col-note">derived</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">gap_to_pole_pct</div><div class="col-type">DECIMAL(6,4)</div><div class="col-note">derived</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">is_pole_position</div><div class="col-type">BOOLEAN</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">reached_q3</div><div class="col-type">BOOLEAN</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">reached_q2</div><div class="col-type">BOOLEAN</div></div>
+      </div>
+    </div>
+
+    <!-- fact_pit_stop -->
+    <div class="tbl-card">
+      <div class="tbl-card-head">
+        <div class="tbl-icon" style="background:var(--gold-dim)">🔧</div>
+        <div><div class="tbl-name">fact_pit_stop</div><div class="tbl-grain">1 row per pit stop event</div></div>
+        <span class="tbl-badge chip chip-fact">FACT</span>
+      </div>
+      <div class="tbl-cols">
+        <div class="col-row"><div class="col-key">🔑</div><div class="col-name pk">pit_stop_key</div><div class="col-type">BIGINT</div><div class="col-note">SK</div></div>
+        <div class="col-row"><div class="col-key">🔗</div><div class="col-name fk">race_key</div><div class="col-type">BIGINT</div><div class="col-note">FK</div></div>
+        <div class="col-row"><div class="col-key">🔗</div><div class="col-name fk">driver_key</div><div class="col-type">BIGINT</div><div class="col-note">FK · CLUSTER</div></div>
+        <div class="col-row"><div class="col-key">🔗</div><div class="col-name fk">constructor_key</div><div class="col-type">BIGINT</div><div class="col-note">FK</div></div>
+        <div class="col-row"><div class="col-key">📊</div><div class="col-name idx">season_year</div><div class="col-type">SMALLINT</div><div class="col-note">PARTITION</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">stop_number</div><div class="col-type">TINYINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">lap_number</div><div class="col-type">TINYINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">stop_time_of_day</div><div class="col-type">TIME</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">stop_duration_milliseconds</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">race_elapsed_milliseconds</div><div class="col-type">BIGINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">is_undercut_attempt</div><div class="col-type">BOOLEAN</div><div class="col-note">derived</div></div>
+      </div>
+    </div>
+
+    <!-- fact_lap_time -->
+    <div class="tbl-card">
+      <div class="tbl-card-head">
+        <div class="tbl-icon" style="background:var(--gold-dim)">💨</div>
+        <div><div class="tbl-name">fact_lap_time</div><div class="tbl-grain">1 row per driver × lap (HUGE table)</div></div>
+        <span class="tbl-badge chip chip-red">⚠ HIGH VOL</span>
+      </div>
+      <div class="tbl-cols">
+        <div class="col-row"><div class="col-key">🔑</div><div class="col-name pk">lap_key</div><div class="col-type">BIGINT</div><div class="col-note">SK</div></div>
+        <div class="col-row"><div class="col-key">🔗</div><div class="col-name fk">race_key</div><div class="col-type">BIGINT</div><div class="col-note">FK · CLUSTER</div></div>
+        <div class="col-row"><div class="col-key">🔗</div><div class="col-name fk">driver_key</div><div class="col-type">BIGINT</div><div class="col-note">FK · CLUSTER</div></div>
+        <div class="col-row"><div class="col-key">📊</div><div class="col-name idx">season_year</div><div class="col-type">SMALLINT</div><div class="col-note">PARTITION</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">lap_number</div><div class="col-type">TINYINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">position_on_lap</div><div class="col-type">TINYINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">lap_time_milliseconds</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">is_pit_lap</div><div class="col-type">BOOLEAN</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">is_fastest_lap</div><div class="col-type">BOOLEAN</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">gap_to_fastest_ms</div><div class="col-type">INT</div><div class="col-note">derived</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">stint_number</div><div class="col-type">TINYINT</div><div class="col-note">derived from pit data</div></div>
+      </div>
+    </div>
+
+    <!-- fact_driver_standing -->
+    <div class="tbl-card">
+      <div class="tbl-card-head">
+        <div class="tbl-icon" style="background:var(--gold-dim)">📊</div>
+        <div><div class="tbl-name">fact_driver_standing</div><div class="tbl-grain">1 row per driver × after each race</div></div>
+        <span class="tbl-badge chip chip-fact">FACT</span>
+      </div>
+      <div class="tbl-cols">
+        <div class="col-row"><div class="col-key">🔑</div><div class="col-name pk">standing_key</div><div class="col-type">BIGINT</div><div class="col-note">SK</div></div>
+        <div class="col-row"><div class="col-key">🔗</div><div class="col-name fk">race_key</div><div class="col-type">BIGINT</div><div class="col-note">FK (snapshot after)</div></div>
+        <div class="col-row"><div class="col-key">🔗</div><div class="col-name fk">driver_key</div><div class="col-type">BIGINT</div><div class="col-note">FK · CLUSTER</div></div>
+        <div class="col-row"><div class="col-key">🔗</div><div class="col-name fk">constructor_key</div><div class="col-type">BIGINT</div><div class="col-note">FK</div></div>
+        <div class="col-row"><div class="col-key">📊</div><div class="col-name idx">season_year</div><div class="col-type">SMALLINT</div><div class="col-note">PARTITION</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">championship_position</div><div class="col-type">TINYINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">cumulative_points</div><div class="col-type">DECIMAL(8,2)</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">wins_to_date</div><div class="col-type">TINYINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">gap_to_leader_pts</div><div class="col-type">DECIMAL(8,2)</div><div class="col-note">derived</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">is_championship_leader</div><div class="col-type">BOOLEAN</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">max_remaining_points</div><div class="col-type">SMALLINT</div><div class="col-note">for clinch analysis</div></div>
+      </div>
+    </div>
+
+    <!-- fact_constructor_standing -->
+    <div class="tbl-card">
+      <div class="tbl-card-head">
+        <div class="tbl-icon" style="background:var(--gold-dim)">🏗️</div>
+        <div><div class="tbl-name">fact_constructor_standing</div><div class="tbl-grain">1 row per constructor × after each race</div></div>
+        <span class="tbl-badge chip chip-fact">FACT</span>
+      </div>
+      <div class="tbl-cols">
+        <div class="col-row"><div class="col-key">🔑</div><div class="col-name pk">con_standing_key</div><div class="col-type">BIGINT</div><div class="col-note">SK</div></div>
+        <div class="col-row"><div class="col-key">🔗</div><div class="col-name fk">race_key</div><div class="col-type">BIGINT</div><div class="col-note">FK</div></div>
+        <div class="col-row"><div class="col-key">🔗</div><div class="col-name fk">constructor_key</div><div class="col-type">BIGINT</div><div class="col-note">FK · CLUSTER</div></div>
+        <div class="col-row"><div class="col-key">📊</div><div class="col-name idx">season_year</div><div class="col-type">SMALLINT</div><div class="col-note">PARTITION</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">championship_position</div><div class="col-type">TINYINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">cumulative_points</div><div class="col-type">DECIMAL(8,2)</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">wins_to_date</div><div class="col-type">TINYINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">gap_to_leader_pts</div><div class="col-type">DECIMAL(8,2)</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">is_championship_leader</div><div class="col-type">BOOLEAN</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 6. ERD -->
+<!-- ═══════════════════════════════════════════════════ -->
+<section class="section" id="erd">
+  <div class="section-header">
+    <div class="section-num">06</div>
+    <div>
+      <div class="section-title">Entity Relationship <span>Diagram</span></div>
+      <div class="section-sub">Star schema centred on fact_race_result — the primary analytical fact</div>
+    </div>
+  </div>
+
+  <div class="erd-wrap">
+    <svg viewBox="0 0 1000 640" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">
+      <defs>
+        <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#444"/>
+        </marker>
+        <marker id="arr-cyan" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#00e5ff"/>
+        </marker>
+      </defs>
+
+      <!-- CENTRAL FACT -->
+      <rect x="340" y="220" width="320" height="200" rx="4" fill="#1a1a20" stroke="#f5c518" stroke-width="2"/>
+      <rect x="340" y="220" width="320" height="28" rx="4" fill="#f5c518" rx="4"/>
+      <text x="500" y="239" text-anchor="middle" font-family="JetBrains Mono" font-size="12" font-weight="700" fill="#111">fact_race_result</text>
+      <text x="352" y="268" font-family="JetBrains Mono" font-size="10" fill="#00e5ff">🔑 result_key</text>
+      <text x="352" y="284" font-family="JetBrains Mono" font-size="10" fill="#00e5ff">🔗 race_key</text>
+      <text x="352" y="300" font-family="JetBrains Mono" font-size="10" fill="#00e5ff">🔗 driver_key</text>
+      <text x="352" y="316" font-family="JetBrains Mono" font-size="10" fill="#00e5ff">🔗 constructor_key</text>
+      <text x="352" y="332" font-family="JetBrains Mono" font-size="10" fill="#00e5ff">🔗 circuit_key</text>
+      <text x="352" y="348" font-family="JetBrains Mono" font-size="10" fill="#00e5ff">🔗 status_key</text>
+      <text x="352" y="364" font-family="JetBrains Mono" font-size="10" fill="#aaa">📊 season_year (PART)</text>
+      <text x="352" y="380" font-family="JetBrains Mono" font-size="10" fill="#aaa">  finish_position, points...</text>
+      <text x="352" y="396" font-family="JetBrains Mono" font-size="10" fill="#aaa">  is_winner, is_podium...</text>
+
+      <!-- dim_driver -->
+      <rect x="10" y="30" width="210" height="140" rx="4" fill="#0f1a1a" stroke="#00e5ff" stroke-width="1.5"/>
+      <rect x="10" y="30" width="210" height="24" rx="4" fill="#00e5ff"/>
+      <text x="115" y="46" text-anchor="middle" font-family="JetBrains Mono" font-size="11" font-weight="700" fill="#0a0a0f">dim_driver</text>
+      <text x="22" y="70" font-family="JetBrains Mono" font-size="9.5" fill="#f5c518">🔑 driver_key (SK)</text>
+      <text x="22" y="86" font-family="JetBrains Mono" font-size="9.5" fill="#aaa">   driver_id (NK)</text>
+      <text x="22" y="102" font-family="JetBrains Mono" font-size="9.5" fill="#aaa">   full_name</text>
+      <text x="22" y="118" font-family="JetBrains Mono" font-size="9.5" fill="#aaa">   nationality_code</text>
+      <text x="22" y="134" font-family="JetBrains Mono" font-size="9.5" fill="#aaa">   date_of_birth</text>
+      <text x="22" y="150" font-family="JetBrains Mono" font-size="9.5" fill="#aaa">   is_active, debut_year</text>
+
+      <!-- dim_constructor -->
+      <rect x="10" y="230" width="210" height="130" rx="4" fill="#0f1a1a" stroke="#00e5ff" stroke-width="1.5"/>
+      <rect x="10" y="230" width="210" height="24" rx="4" fill="#00e5ff"/>
+      <text x="115" y="246" text-anchor="middle" font-family="JetBrains Mono" font-size="11" font-weight="700" fill="#0a0a0f">dim_constructor</text>
+      <text x="22" y="270" font-family="JetBrains Mono" font-size="9.5" fill="#f5c518">🔑 constructor_key (SK)</text>
+      <text x="22" y="286" font-family="JetBrains Mono" font-size="9.5" fill="#aaa">   constructor_id (NK)</text>
+      <text x="22" y="302" font-family="JetBrains Mono" font-size="9.5" fill="#aaa">   constructor_name</text>
+      <text x="22" y="318" font-family="JetBrains Mono" font-size="9.5" fill="#aaa">   nationality</text>
+      <text x="22" y="334" font-family="JetBrains Mono" font-size="9.5" fill="#6e6e85">   SCD2: valid_from/to</text>
+
+      <!-- dim_circuit -->
+      <rect x="10" y="430" width="210" height="140" rx="4" fill="#0f1a1a" stroke="#00e5ff" stroke-width="1.5"/>
+      <rect x="10" y="430" width="210" height="24" rx="4" fill="#00e5ff"/>
+      <text x="115" y="446" text-anchor="middle" font-family="JetBrains Mono" font-size="11" font-weight="700" fill="#0a0a0f">dim_circuit</text>
+      <text x="22" y="470" font-family="JetBrains Mono" font-size="9.5" fill="#f5c518">🔑 circuit_key (SK)</text>
+      <text x="22" y="486" font-family="JetBrains Mono" font-size="9.5" fill="#aaa">   circuit_name</text>
+      <text x="22" y="502" font-family="JetBrains Mono" font-size="9.5" fill="#aaa">   country, city</text>
+      <text x="22" y="518" font-family="JetBrains Mono" font-size="9.5" fill="#aaa">   latitude, longitude</text>
+      <text x="22" y="534" font-family="JetBrains Mono" font-size="9.5" fill="#aaa">   circuit_type</text>
+      <text x="22" y="550" font-family="JetBrains Mono" font-size="9.5" fill="#aaa">   altitude_metres</text>
+
+      <!-- dim_race (top centre) -->
+      <rect x="340" y="30" width="210" height="130" rx="4" fill="#0f1a1a" stroke="#00e5ff" stroke-width="1.5"/>
+      <rect x="340" y="30" width="210" height="24" rx="4" fill="#00e5ff"/>
+      <text x="445" y="46" text-anchor="middle" font-family="JetBrains Mono" font-size="11" font-weight="700" fill="#0a0a0f">dim_race</text>
+      <text x="352" y="70" font-family="JetBrains Mono" font-size="9.5" fill="#f5c518">🔑 race_key (SK)</text>
+      <text x="352" y="86" font-family="JetBrains Mono" font-size="9.5" fill="#aaa">   season_year</text>
+      <text x="352" y="102" font-family="JetBrains Mono" font-size="9.5" fill="#aaa">   round_number</text>
+      <text x="352" y="118" font-family="JetBrains Mono" font-size="9.5" fill="#aaa">   race_name, race_date</text>
+      <text x="352" y="134" font-family="JetBrains Mono" font-size="9.5" fill="#aaa">   is_sprint_weekend</text>
+
+      <!-- dim_status (right) -->
+      <rect x="780" y="230" width="210" height="120" rx="4" fill="#0f1a1a" stroke="#00e5ff" stroke-width="1.5"/>
+      <rect x="780" y="230" width="210" height="24" rx="4" fill="#00e5ff"/>
+      <text x="885" y="246" text-anchor="middle" font-family="JetBrains Mono" font-size="11" font-weight="700" fill="#0a0a0f">dim_race_status</text>
+      <text x="792" y="270" font-family="JetBrains Mono" font-size="9.5" fill="#f5c518">🔑 status_key</text>
+      <text x="792" y="286" font-family="JetBrains Mono" font-size="9.5" fill="#aaa">   status_label</text>
+      <text x="792" y="302" font-family="JetBrains Mono" font-size="9.5" fill="#aaa">   status_category</text>
+      <text x="792" y="318" font-family="JetBrains Mono" font-size="9.5" fill="#aaa">   is_classified</text>
+      <text x="792" y="334" font-family="JetBrains Mono" font-size="9.5" fill="#aaa">   is_mechanical</text>
+
+      <!-- dim_season (right top) -->
+      <rect x="780" y="30" width="210" height="130" rx="4" fill="#0f1a1a" stroke="#00e5ff" stroke-width="1.5"/>
+      <rect x="780" y="30" width="210" height="24" rx="4" fill="#00e5ff"/>
+      <text x="885" y="46" text-anchor="middle" font-family="JetBrains Mono" font-size="11" font-weight="700" fill="#0a0a0f">dim_season</text>
+      <text x="792" y="70" font-family="JetBrains Mono" font-size="9.5" fill="#f5c518">🔑 season_year</text>
+      <text x="792" y="86" font-family="JetBrains Mono" font-size="9.5" fill="#aaa">   era_label</text>
+      <text x="792" y="102" font-family="JetBrains Mono" font-size="9.5" fill="#aaa">   total_races</text>
+      <text x="792" y="118" font-family="JetBrains Mono" font-size="9.5" fill="#aaa">   points_for_win</text>
+      <text x="792" y="134" font-family="JetBrains Mono" font-size="9.5" fill="#aaa">   regulation_cycle</text>
+
+      <!-- SATELLITE FACTS (bottom) -->
+      <rect x="220" y="500" width="170" height="110" rx="4" fill="#1a1a10" stroke="#f5c518" stroke-width="1" stroke-dasharray="5,3"/>
+      <text x="305" y="518" text-anchor="middle" font-family="JetBrains Mono" font-size="10" font-weight="700" fill="#f5c518">fact_qualifying</text>
+      <text x="232" y="534" font-family="JetBrains Mono" font-size="9" fill="#6e6e85">race_key, driver_key</text>
+      <text x="232" y="548" font-family="JetBrains Mono" font-size="9" fill="#6e6e85">q1/q2/q3 times</text>
+      <text x="232" y="562" font-family="JetBrains Mono" font-size="9" fill="#6e6e85">gap_to_pole_ms</text>
+      <text x="232" y="576" font-family="JetBrains Mono" font-size="9" fill="#6e6e85">is_pole_position</text>
+
+      <rect x="420" y="500" width="160" height="110" rx="4" fill="#1a1a10" stroke="#f5c518" stroke-width="1" stroke-dasharray="5,3"/>
+      <text x="500" y="518" text-anchor="middle" font-family="JetBrains Mono" font-size="10" font-weight="700" fill="#f5c518">fact_pit_stop</text>
+      <text x="432" y="534" font-family="JetBrains Mono" font-size="9" fill="#6e6e85">race_key, driver_key</text>
+      <text x="432" y="548" font-family="JetBrains Mono" font-size="9" fill="#6e6e85">stop_number, lap</text>
+      <text x="432" y="562" font-family="JetBrains Mono" font-size="9" fill="#6e6e85">duration_ms</text>
+
+      <rect x="610" y="500" width="160" height="110" rx="4" fill="#1a1a10" stroke="#ff2d55" stroke-width="1" stroke-dasharray="5,3"/>
+      <text x="690" y="518" text-anchor="middle" font-family="JetBrains Mono" font-size="10" font-weight="700" fill="#ff2d55">fact_lap_time</text>
+      <text x="622" y="534" font-family="JetBrains Mono" font-size="9" fill="#6e6e85">race_key, driver_key</text>
+      <text x="622" y="548" font-family="JetBrains Mono" font-size="9" fill="#6e6e85">lap_number</text>
+      <text x="622" y="562" font-family="JetBrains Mono" font-size="9" fill="#6e6e85">lap_time_ms</text>
+      <text x="622" y="576" font-family="JetBrains Mono" font-size="9" fill="#ff2d55">⚠ BILLION ROWS</text>
+
+      <!-- RELATIONSHIP LINES -->
+      <!-- dim_driver → fact -->
+      <line x1="220" y1="100" x2="340" y2="300" stroke="#00e5ff" stroke-width="1.2" stroke-opacity="0.5" marker-end="url(#arr-cyan)"/>
+      <!-- dim_constructor → fact -->
+      <line x1="220" y1="295" x2="340" y2="320" stroke="#00e5ff" stroke-width="1.2" stroke-opacity="0.5" marker-end="url(#arr-cyan)"/>
+      <!-- dim_circuit → fact -->
+      <line x1="220" y1="500" x2="340" y2="332" stroke="#00e5ff" stroke-width="1.2" stroke-opacity="0.5" marker-end="url(#arr-cyan)"/>
+      <!-- dim_race → fact -->
+      <line x1="445" y1="160" x2="445" y2="220" stroke="#00e5ff" stroke-width="1.2" stroke-opacity="0.5" marker-end="url(#arr-cyan)"/>
+      <!-- dim_status → fact -->
+      <line x1="780" y1="292" x2="660" y2="348" stroke="#00e5ff" stroke-width="1.2" stroke-opacity="0.5" marker-end="url(#arr-cyan)"/>
+      <!-- dim_season → fact (via race) -->
+      <line x1="780" y1="95" x2="660" y2="95" stroke="#00e5ff" stroke-width="1" stroke-opacity="0.3" stroke-dasharray="4,3"/>
+      <line x1="660" y1="95" x2="550" y2="160" stroke="#00e5ff" stroke-width="1" stroke-opacity="0.3" stroke-dasharray="4,3" marker-end="url(#arr-cyan)"/>
+
+      <!-- satellite fact connections (dashed) -->
+      <line x1="305" y1="500" x2="420" y2="410" stroke="#f5c518" stroke-width="1" stroke-opacity="0.3" stroke-dasharray="4,3"/>
+      <line x1="500" y1="500" x2="500" y2="420" stroke="#f5c518" stroke-width="1" stroke-opacity="0.3" stroke-dasharray="4,3"/>
+      <line x1="690" y1="500" x2="580" y2="420" stroke="#ff2d55" stroke-width="1" stroke-opacity="0.3" stroke-dasharray="4,3"/>
+
+      <!-- Legend -->
+      <rect x="340" y="460" width="320" height="30" rx="3" fill="#111118" stroke="#222"/>
+      <line x1="352" y1="475" x2="380" y2="475" stroke="#00e5ff" stroke-width="1.5"/>
+      <text x="386" y="479" font-family="JetBrains Mono" font-size="9" fill="#aaa">Dim → Fact FK</text>
+      <line x1="460" y1="475" x2="488" y2="475" stroke="#f5c518" stroke-width="1" stroke-dasharray="4,3"/>
+      <text x="494" y="479" font-family="JetBrains Mono" font-size="9" fill="#aaa">Satellite Fact</text>
+      <line x1="568" y1="475" x2="596" y2="475" stroke="#ff2d55" stroke-width="1" stroke-dasharray="4,3"/>
+      <text x="602" y="479" font-family="JetBrains Mono" font-size="9" fill="#aaa">High-volume</text>
+    </svg>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 7. DBT STRUCTURE -->
+<!-- ═══════════════════════════════════════════════════ -->
+<section class="section" id="dbt-structure">
+  <div class="section-header">
+    <div class="section-num">07</div>
+    <div>
+      <div class="section-title">dbt Project <span>Structure</span></div>
+      <div class="section-sub">Full directory tree with materialisation strategy per layer</div>
+    </div>
+  </div>
+
+  <div class="dbt-tree">
+<span class="dir">f1_dbt/</span>
+├── <span class="dir">models/</span>
+│   ├── <span class="dir">staging/</span>                         <span class="cmt">-- materialised: view | schema: staging</span>
+│   │   ├── <span class="file src">sources.yml</span>              <span class="cmt">-- declares S3→PySpark loaded tables</span>
+│   │   ├── <span class="file stg">stg_drivers.sql</span>
+│   │   ├── <span class="file stg">stg_constructors.sql</span>
+│   │   ├── <span class="file stg">stg_circuits.sql</span>
+│   │   ├── <span class="file stg">stg_seasons.sql</span>
+│   │   ├── <span class="file stg">stg_races.sql</span>
+│   │   ├── <span class="file stg">stg_results.sql</span>
+│   │   ├── <span class="file stg">stg_qualifying.sql</span>
+│   │   ├── <span class="file stg">stg_pit_stops.sql</span>
+│   │   ├── <span class="file stg">stg_lap_times.sql</span>
+│   │   ├── <span class="file stg">stg_driver_standings.sql</span>
+│   │   ├── <span class="file stg">stg_constructor_standings.sql</span>
+│   │   └── <span class="file stg">stg_status.sql</span>
+│   │
+│   ├── <span class="dir">intermediate/</span>                    <span class="cmt">-- materialised: ephemeral (no warehouse cost)</span>
+│   │   ├── <span class="file stg">int_drivers_enriched.sql</span>   <span class="cmt">-- adds flag, nationality_code, debut_year</span>
+│   │   ├── <span class="file stg">int_results_with_flags.sql</span> <span class="cmt">-- adds is_winner, is_podium, positions_gained</span>
+│   │   ├── <span class="file stg">int_lap_times_cleaned.sql</span>  <span class="cmt">-- removes pit-out laps, converts "1:21.546"→ms</span>
+│   │   └── <span class="file stg">int_constructors_scd.sql</span>   <span class="cmt">-- SCD2 logic for name changes</span>
+│   │
+│   ├── <span class="dir">core/</span>                            <span class="cmt">-- materialised: table | schema: core</span>
+│   │   ├── <span class="dir">dimensions/</span>
+│   │   │   ├── <span class="file dim">dim_driver.sql</span>
+│   │   │   ├── <span class="file dim">dim_constructor.sql</span>
+│   │   │   ├── <span class="file dim">dim_circuit.sql</span>
+│   │   │   ├── <span class="file dim">dim_race.sql</span>
+│   │   │   ├── <span class="file dim">dim_season.sql</span>
+│   │   │   ├── <span class="file dim">dim_date.sql</span>
+│   │   │   └── <span class="file dim">dim_race_status.sql</span>
+│   │   └── <span class="dir">facts/</span>
+│   │       ├── <span class="file fact">fact_race_result.sql</span>       <span class="cmt">-- incremental, unique_key=result_key</span>
+│   │       ├── <span class="file fact">fact_qualifying.sql</span>        <span class="cmt">-- incremental, unique_key=qualify_key</span>
+│   │       ├── <span class="file fact">fact_pit_stop.sql</span>          <span class="cmt">-- incremental, unique_key=pit_stop_key</span>
+│   │       ├── <span class="file fact">fact_lap_time.sql</span>          <span class="cmt">-- incremental partitioned, HUGE</span>
+│   │       ├── <span class="file fact">fact_driver_standing.sql</span>   <span class="cmt">-- full refresh (small)</span>
+│   │       └── <span class="file fact">fact_constructor_standing.sql</span>
+│   │
+│   └── <span class="dir">marts/</span>                           <span class="cmt">-- materialised: table | schema: marts</span>
+│       ├── <span class="file mart">mart_driver_career.sql</span>
+│       ├── <span class="file mart">mart_driver_season.sql</span>
+│       ├── <span class="file mart">mart_constructor_career.sql</span>
+│       ├── <span class="file mart">mart_constructor_season.sql</span>
+│       ├── <span class="file mart">mart_season_summary.sql</span>
+│       ├── <span class="file mart">mart_circuit_stats.sql</span>
+│       ├── <span class="file mart">mart_race_summary.sql</span>
+│       ├── <span class="file mart">mart_head_to_head.sql</span>
+│       ├── <span class="file mart">mart_records.sql</span>
+│       └── <span class="dir">ai/</span>
+│           ├── <span class="file mcp">mart_ai_context.sql</span>        <span class="cmt">-- wide denorm for LLM context</span>
+│           ├── <span class="file mcp">semantic_catalog.sql</span>       <span class="cmt">-- table + column descriptions</span>
+│           └── <span class="file mcp">nl_prompt_store.sql</span>        <span class="cmt">-- NL→SQL prompt templates</span>
+│
+├── <span class="dir">macros/</span>
+│   ├── <span class="file stg">generate_surrogate_key.sql</span>
+│   ├── <span class="file stg">ms_to_laptime.sql</span>             <span class="cmt">-- 81046 → "1:21.046"</span>
+│   ├── <span class="file stg">get_era_label.sql</span>
+│   └── <span class="file stg">flag_emoji.sql</span>
+│
+├── <span class="dir">tests/</span>
+│   ├── <span class="file stg">assert_no_null_fks.sql</span>
+│   ├── <span class="file stg">assert_fact_grain.sql</span>
+│   └── <span class="file stg">assert_standing_monotonic.sql</span>
+│
+├── <span class="dir">analyses/</span>                           <span class="cmt">-- ad-hoc queries saved for reuse</span>
+│   ├── <span class="file fact">championship_decider_races.sql</span>
+│   └── <span class="file mart">head_to_head_query.sql</span>
+│
+└── <span class="file src">dbt_project.yml</span>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 8. DBT MODEL SQL -->
+<!-- ═══════════════════════════════════════════════════ -->
+<section class="section" id="dbt-models">
+  <div class="section-header">
+    <div class="section-num">08</div>
+    <div>
+      <div class="section-title">dbt Model <span>SQL</span></div>
+      <div class="section-sub">Key model definitions — staging, dimension, and fact layers</div>
+    </div>
+  </div>
+
+  <div class="code-block dbt"><span class="cmt">-- models/staging/stg_results.sql
+-- Staging model: clean raw results, cast types, add audit cols</span>
+<span class="kw">{{</span> config(materialized=<span class="str">'view'</span>, schema=<span class="str">'staging'</span>, tags=[<span class="str">'staging'</span>]) <span class="kw">}}</span>
+
+<span class="kw">WITH</span> <span class="tbl">source</span> <span class="kw">AS</span> (
+    <span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="kw">{{</span> source(<span class="str">'raw'</span>, <span class="str">'results'</span>) <span class="kw">}}</span>
+),
+<span class="tbl">renamed</span> <span class="kw">AS</span> (
+    <span class="kw">SELECT</span>
+        <span class="fn">CAST</span>(<span class="col">resultId</span>   <span class="kw">AS</span> <span class="type">INT</span>)           <span class="kw">AS</span> <span class="col">result_id</span>,
+        <span class="fn">CAST</span>(<span class="col">raceId</span>     <span class="kw">AS</span> <span class="type">INT</span>)           <span class="kw">AS</span> <span class="col">race_id</span>,
+        <span class="fn">CAST</span>(<span class="col">driverId</span>   <span class="kw">AS</span> <span class="type">INT</span>)           <span class="kw">AS</span> <span class="col">driver_id</span>,
+        <span class="fn">CAST</span>(<span class="col">constructorId</span> <span class="kw">AS</span> <span class="type">INT</span>)       <span class="kw">AS</span> <span class="col">constructor_id</span>,
+        <span class="fn">NULLIF</span>(<span class="fn">CAST</span>(<span class="col">grid</span> <span class="kw">AS</span> <span class="type">INT</span>), <span class="num">0</span>)      <span class="kw">AS</span> <span class="col">grid_position</span>,
+        <span class="fn">NULLIF</span>(<span class="fn">CAST</span>(<span class="col">position</span> <span class="kw">AS</span> <span class="type">INT</span>), <span class="num">0</span>) <span class="kw">AS</span> <span class="col">finish_position</span>,
+        <span class="fn">COALESCE</span>(<span class="fn">CAST</span>(<span class="col">points</span> <span class="kw">AS</span> <span class="type">DECIMAL(5,2)</span>), <span class="num">0</span>) <span class="kw">AS</span> <span class="col">points</span>,
+        <span class="fn">CAST</span>(<span class="col">laps</span>       <span class="kw">AS</span> <span class="type">INT</span>)           <span class="kw">AS</span> <span class="col">laps_completed</span>,
+        <span class="fn">CAST</span>(<span class="col">statusId</span>  <span class="kw">AS</span> <span class="type">INT</span>)           <span class="kw">AS</span> <span class="col">status_id</span>,
+        <span class="cmt">-- parse lap time string "1:21.546" → milliseconds</span>
+        <span class="kw">{{</span> <span class="fn">ms_to_laptime</span>(<span class="str">'fastestLapTime'</span>) <span class="kw">}}</span>  <span class="kw">AS</span> <span class="col">fastest_lap_time_ms</span>,
+        <span class="fn">NULLIF</span>(<span class="fn">CAST</span>(<span class="col">fastestLapSpeed</span> <span class="kw">AS</span> <span class="type">DECIMAL(6,3)</span>), <span class="num">0</span>) <span class="kw">AS</span> <span class="col">fastest_lap_speed_kph</span>,
+        <span class="fn">NULLIF</span>(<span class="fn">CAST</span>(<span class="col">rank</span> <span class="kw">AS</span> <span class="type">INT</span>), <span class="num">0</span>)       <span class="kw">AS</span> <span class="col">fastest_lap_rank</span>,
+        <span class="str">'results.csv'</span>                     <span class="kw">AS</span> <span class="col">_source_file</span>,
+        <span class="fn">CURRENT_TIMESTAMP</span>                 <span class="kw">AS</span> <span class="col">_loaded_at</span>
+    <span class="kw">FROM</span> <span class="tbl">source</span>
+    <span class="kw">WHERE</span> <span class="col">resultId</span> <span class="kw">IS NOT NULL</span>
+)
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="tbl">renamed</span>
+</div>
+
+  <div class="code-block dbt"><span class="cmt">-- models/core/dimensions/dim_driver.sql</span>
+<span class="kw">{{</span> config(materialized=<span class="str">'table'</span>, schema=<span class="str">'core'</span>, tags=[<span class="str">'dim'</span>]) <span class="kw">}}</span>
+
+<span class="kw">WITH</span> <span class="tbl">drivers</span> <span class="kw">AS</span> (
+    <span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="kw">{{</span> ref(<span class="str">'stg_drivers'</span>) <span class="kw">}}</span>
+),
+<span class="tbl">debut_years</span> <span class="kw">AS</span> (
+    <span class="kw">SELECT</span>
+        <span class="col">r.driver_id</span>,
+        <span class="fn">MIN</span>(<span class="col">ra.year</span>) <span class="kw">AS</span> <span class="col">debut_year</span>,
+        <span class="fn">MAX</span>(<span class="col">ra.year</span>) <span class="kw">AS</span> <span class="col">final_year</span>
+    <span class="kw">FROM</span> <span class="kw">{{</span> ref(<span class="str">'stg_results'</span>) <span class="kw">}}</span> <span class="col">r</span>
+    <span class="kw">JOIN</span>  <span class="kw">{{</span> ref(<span class="str">'stg_races'</span>) <span class="kw">}}</span> <span class="col">ra</span> <span class="kw">ON</span> <span class="col">r.race_id</span> = <span class="col">ra.race_id</span>
+    <span class="kw">GROUP BY</span> <span class="num">1</span>
+)
+<span class="kw">SELECT</span>
+    <span class="kw">{{</span> <span class="fn">generate_surrogate_key</span>([<span class="str">'d.driver_id'</span>]) <span class="kw">}}</span>  <span class="kw">AS</span> <span class="col">driver_key</span>,
+    <span class="col">d.driver_id</span>,
+    <span class="col">d.driver_ref</span>,
+    <span class="col">d.code</span>                                      <span class="kw">AS</span> <span class="col">driver_code</span>,
+    <span class="fn">CONCAT</span>(<span class="col">d.forename</span>, <span class="str">' '</span>, <span class="col">d.surname</span>)           <span class="kw">AS</span> <span class="col">full_name</span>,
+    <span class="col">d.forename</span>,
+    <span class="col">d.surname</span>,
+    <span class="col">d.date_of_birth</span>,
+    <span class="col">d.nationality</span>,
+    <span class="kw">{{</span> <span class="fn">nationality_to_code</span>(<span class="str">'d.nationality'</span>) <span class="kw">}}</span>   <span class="kw">AS</span> <span class="col">nationality_code</span>,
+    <span class="kw">{{</span> <span class="fn">flag_emoji</span>(<span class="str">'d.nationality'</span>) <span class="kw">}}</span>            <span class="kw">AS</span> <span class="col">flag_emoji</span>,
+    <span class="col">d.number</span>                                    <span class="kw">AS</span> <span class="col">permanent_number</span>,
+    <span class="col">dy.debut_year</span>,
+    <span class="col">dy.final_year</span>,
+    <span class="col">dy.final_year</span> >= <span class="fn">YEAR</span>(<span class="fn">CURRENT_DATE</span>()) - <span class="num">2</span>  <span class="kw">AS</span> <span class="col">is_active</span>,
+    <span class="col">d.wikipedia_url</span>,
+    <span class="fn">CURRENT_TIMESTAMP</span>                           <span class="kw">AS</span> <span class="col">dw_created_at</span>,
+    <span class="fn">CURRENT_TIMESTAMP</span>                           <span class="kw">AS</span> <span class="col">dw_updated_at</span>
+<span class="kw">FROM</span> <span class="tbl">drivers</span> <span class="col">d</span>
+<span class="kw">LEFT JOIN</span> <span class="tbl">debut_years</span> <span class="col">dy</span> <span class="kw">ON</span> <span class="col">d.driver_id</span> = <span class="col">dy.driver_id</span>
+</div>
+
+  <div class="code-block dbt"><span class="cmt">-- models/core/facts/fact_race_result.sql
+-- Incremental model: merge on result_key. Partition by season_year.</span>
+<span class="kw">{{</span> config(
+    materialized  = <span class="str">'incremental'</span>,
+    unique_key    = <span class="str">'result_key'</span>,
+    schema        = <span class="str">'core'</span>,
+    partition_by  = {<span class="str">'field'</span>: <span class="str">'season_year'</span>, <span class="str">'data_type'</span>: <span class="str">'int'</span>},
+    cluster_by    = [<span class="str">'driver_key'</span>, <span class="str">'constructor_key'</span>],
+    tags          = [<span class="str">'fact'</span>, <span class="str">'incremental'</span>]
+) <span class="kw">}}</span>
+
+<span class="kw">WITH</span> <span class="tbl">results</span> <span class="kw">AS</span> (
+    <span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="kw">{{</span> ref(<span class="str">'stg_results'</span>) <span class="kw">}}</span>
+    <span class="kw">{{</span>- <span class="kw">if</span> is_incremental() <span class="kw">}}</span>
+    <span class="kw">WHERE</span> <span class="col">_loaded_at</span> > (<span class="kw">SELECT</span> <span class="fn">MAX</span>(<span class="col">dw_inserted_at</span>) <span class="kw">FROM</span> <span class="kw">{{</span> this <span class="kw">}}</span>)
+    <span class="kw">{{</span>- <span class="kw">endif</span> <span class="kw">}}</span>
+)
+<span class="kw">SELECT</span>
+    <span class="kw">{{</span> <span class="fn">generate_surrogate_key</span>([<span class="str">'res.result_id'</span>]) <span class="kw">}}</span>    <span class="kw">AS</span> <span class="col">result_key</span>,
+    <span class="col">dr.race_key</span>,
+    <span class="col">dd.driver_key</span>,
+    <span class="col">dc.constructor_key</span>,
+    <span class="col">dr.circuit_key</span>,
+    <span class="col">ds.status_key</span>,
+    <span class="col">ra.year</span>                                             <span class="kw">AS</span> <span class="col">season_year</span>,
+    <span class="col">res.grid_position</span>,
+    <span class="col">res.finish_position</span>,
+    <span class="col">res.points</span>                                          <span class="kw">AS</span> <span class="col">points_scored</span>,
+    <span class="col">res.laps_completed</span>,
+    <span class="col">res.fastest_lap_time_ms</span>,
+    <span class="col">res.fastest_lap_speed_kph</span>,
+    <span class="col">res.fastest_lap_rank</span>,
+    <span class="col">res.fastest_lap_rank</span> = <span class="num">1</span>                            <span class="kw">AS</span> <span class="col">is_fastest_lap_point</span>,
+    <span class="col">res.finish_position</span> = <span class="num">1</span>                             <span class="kw">AS</span> <span class="col">is_winner</span>,
+    <span class="col">res.finish_position</span> <= <span class="num">3</span>                            <span class="kw">AS</span> <span class="col">is_podium</span>,
+    <span class="col">res.points</span> > <span class="num">0</span>                                      <span class="kw">AS</span> <span class="col">is_points_finish</span>,
+    <span class="col">res.grid_position</span> - <span class="col">res.finish_position</span>            <span class="kw">AS</span> <span class="col">positions_gained</span>,
+    <span class="kw">FALSE</span>                                               <span class="kw">AS</span> <span class="col">is_sprint</span>,
+    <span class="fn">CURRENT_TIMESTAMP</span>                                  <span class="kw">AS</span> <span class="col">dw_inserted_at</span>
+<span class="kw">FROM</span> <span class="tbl">results</span> <span class="col">res</span>
+<span class="kw">JOIN</span> <span class="kw">{{</span> ref(<span class="str">'dim_race'</span>) <span class="kw">}}</span>        <span class="col">dr</span>  <span class="kw">ON</span> <span class="col">res.race_id</span>        = <span class="col">dr.race_id</span>
+<span class="kw">JOIN</span> <span class="kw">{{</span> ref(<span class="str">'dim_driver'</span>) <span class="kw">}}</span>      <span class="col">dd</span>  <span class="kw">ON</span> <span class="col">res.driver_id</span>      = <span class="col">dd.driver_id</span>
+<span class="kw">JOIN</span> <span class="kw">{{</span> ref(<span class="str">'dim_constructor'</span>) <span class="kw">}}</span> <span class="col">dc</span>  <span class="kw">ON</span> <span class="col">res.constructor_id</span> = <span class="col">dc.constructor_id</span>
+    <span class="kw">AND</span> <span class="col">dc.scd_is_current</span> = <span class="kw">TRUE</span>
+<span class="kw">JOIN</span> <span class="kw">{{</span> ref(<span class="str">'dim_race_status'</span>) <span class="kw">}}</span> <span class="col">ds</span>  <span class="kw">ON</span> <span class="col">res.status_id</span>      = <span class="col">ds.status_id</span>
+<span class="kw">JOIN</span> <span class="kw">{{</span> ref(<span class="str">'stg_races'</span>) <span class="kw">}}</span>       <span class="col">ra</span>  <span class="kw">ON</span> <span class="col">res.race_id</span>        = <span class="col">ra.race_id</span>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 9. MARTS -->
+<!-- ═══════════════════════════════════════════════════ -->
+<section class="section" id="marts">
+  <div class="section-header">
+    <div class="section-num">09</div>
+    <div>
+      <div class="section-title">Data <span>Marts</span></div>
+      <div class="section-sub">9 pre-aggregated mart tables. Dashboard queries hit these — never raw facts.</div>
+    </div>
+  </div>
+
+  <div class="schema-grid four">
+    <div class="tbl-card">
+      <div class="tbl-card-head">
+        <div class="tbl-icon" style="background:var(--green-dim)">🏆</div>
+        <div><div class="tbl-name">mart_driver_career</div><div class="tbl-grain">1 row per driver · all-time</div></div>
+        <span class="tbl-badge chip chip-mart">MART</span>
+      </div>
+      <div class="tbl-cols">
+        <div class="col-row"><div class="col-key">🔑</div><div class="col-name pk">driver_key</div><div class="col-type">BIGINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">full_name</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">nationality</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">total_race_starts</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">total_wins</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">total_podiums</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">total_poles</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">total_fastest_laps</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">total_points</div><div class="col-type">DECIMAL</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">championship_titles</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">win_rate_pct</div><div class="col-type">DECIMAL(5,2)</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">podium_rate_pct</div><div class="col-type">DECIMAL(5,2)</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">avg_grid_position</div><div class="col-type">DECIMAL(4,2)</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">avg_finish_position</div><div class="col-type">DECIMAL(4,2)</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">dnf_count</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">career_span_years</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">best_season_year</div><div class="col-type">SMALLINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">most_wins_in_season</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">teams_raced_for</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">last_updated_at</div><div class="col-type">TIMESTAMP</div></div>
+      </div>
+    </div>
+
+    <div class="tbl-card">
+      <div class="tbl-card-head">
+        <div class="tbl-icon" style="background:var(--green-dim)">📅</div>
+        <div><div class="tbl-name">mart_driver_season</div><div class="tbl-grain">1 row per driver × season</div></div>
+        <span class="tbl-badge chip chip-mart">MART</span>
+      </div>
+      <div class="tbl-cols">
+        <div class="col-row"><div class="col-key">🔑</div><div class="col-name pk">driver_season_key</div><div class="col-type">BIGINT</div></div>
+        <div class="col-row"><div class="col-key">📊</div><div class="col-name idx">season_year</div><div class="col-type">SMALLINT</div></div>
+        <div class="col-row"><div class="col-key">🔗</div><div class="col-name fk">driver_key</div><div class="col-type">BIGINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">full_name</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">constructor_name</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">races_entered</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">season_wins</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">season_podiums</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">season_poles</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">season_points</div><div class="col-type">DECIMAL</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">final_championship_pos</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">is_champion</div><div class="col-type">BOOLEAN</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">pts_gap_to_champ</div><div class="col-type">DECIMAL</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">avg_finishing_pos</div><div class="col-type">DECIMAL(4,2)</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">best_result</div><div class="col-type">INT</div></div>
+      </div>
+    </div>
+
+    <div class="tbl-card">
+      <div class="tbl-card-head">
+        <div class="tbl-icon" style="background:var(--green-dim)">🏗️</div>
+        <div><div class="tbl-name">mart_constructor_career</div><div class="tbl-grain">1 row per constructor</div></div>
+        <span class="tbl-badge chip chip-mart">MART</span>
+      </div>
+      <div class="tbl-cols">
+        <div class="col-row"><div class="col-key">🔑</div><div class="col-name pk">constructor_key</div><div class="col-type">BIGINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">constructor_name</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">nationality</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">total_race_entries</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">total_wins</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">total_podiums</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">total_poles</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">total_points</div><div class="col-type">DECIMAL</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">constructor_titles</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">title_years</div><div class="col-type">VARCHAR</div><div class="col-note">JSON array</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">win_rate_pct</div><div class="col-type">DECIMAL(5,2)</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">seasons_competed</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">active_years_range</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">is_active</div><div class="col-type">BOOLEAN</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">most_successful_driver</div><div class="col-type">VARCHAR</div></div>
+      </div>
+    </div>
+
+    <div class="tbl-card">
+      <div class="tbl-card-head">
+        <div class="tbl-icon" style="background:var(--green-dim)">🌟</div>
+        <div><div class="tbl-name">mart_season_summary</div><div class="tbl-grain">1 row per season</div></div>
+        <span class="tbl-badge chip chip-mart">MART</span>
+      </div>
+      <div class="tbl-cols">
+        <div class="col-row"><div class="col-key">🔑</div><div class="col-name pk">season_year</div><div class="col-type">SMALLINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">driver_champion</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">constructor_champion</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">champion_wins</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">champion_points</div><div class="col-type">DECIMAL</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">total_races</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">unique_winners</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">unique_pole_sitters</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">total_dnfs</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">closest_championship_gap</div><div class="col-type">DECIMAL</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">avg_pit_stop_duration_ms</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">era_label</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">has_sprint_races</div><div class="col-type">BOOLEAN</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">championship_decided_round</div><div class="col-type">INT</div></div>
+      </div>
+    </div>
+
+    <div class="tbl-card">
+      <div class="tbl-card-head">
+        <div class="tbl-icon" style="background:var(--green-dim)">🗺️</div>
+        <div><div class="tbl-name">mart_circuit_stats</div><div class="tbl-grain">1 row per circuit</div></div>
+        <span class="tbl-badge chip chip-mart">MART</span>
+      </div>
+      <div class="tbl-cols">
+        <div class="col-row"><div class="col-key">🔑</div><div class="col-name pk">circuit_key</div><div class="col-type">BIGINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">circuit_name</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">country</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">total_races_held</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">first_race_year</div><div class="col-type">SMALLINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">last_race_year</div><div class="col-type">SMALLINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">most_wins_driver</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">most_wins_constructor</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">lap_record_time_ms</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">lap_record_driver</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">lap_record_year</div><div class="col-type">SMALLINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">avg_race_laps</div><div class="col-type">DECIMAL(4,1)</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">avg_pit_stops_per_race</div><div class="col-type">DECIMAL(3,1)</div></div>
+      </div>
+    </div>
+
+    <div class="tbl-card">
+      <div class="tbl-card-head">
+        <div class="tbl-icon" style="background:var(--green-dim)">⚡</div>
+        <div><div class="tbl-name">mart_head_to_head</div><div class="tbl-grain">1 row per driver_a × driver_b × season</div></div>
+        <span class="tbl-badge chip chip-mart">MART</span>
+      </div>
+      <div class="tbl-cols">
+        <div class="col-row"><div class="col-key">🔑</div><div class="col-name pk">h2h_key</div><div class="col-type">BIGINT</div></div>
+        <div class="col-row"><div class="col-key">🔗</div><div class="col-name fk">driver_a_key</div><div class="col-type">BIGINT</div></div>
+        <div class="col-row"><div class="col-key">🔗</div><div class="col-name fk">driver_b_key</div><div class="col-type">BIGINT</div></div>
+        <div class="col-row"><div class="col-key">📊</div><div class="col-name idx">season_year</div><div class="col-type">SMALLINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">races_as_teammates</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">driver_a_quali_wins</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">driver_b_quali_wins</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">driver_a_race_wins</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">driver_b_race_wins</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">driver_a_avg_position</div><div class="col-type">DECIMAL(4,2)</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">driver_b_avg_position</div><div class="col-type">DECIMAL(4,2)</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">constructor_name</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">avg_quali_gap_ms</div><div class="col-type">INT</div></div>
+      </div>
+    </div>
+
+    <div class="tbl-card">
+      <div class="tbl-card-head">
+        <div class="tbl-icon" style="background:var(--green-dim)">📜</div>
+        <div><div class="tbl-name">mart_records</div><div class="tbl-grain">1 row per record category</div></div>
+        <span class="tbl-badge chip chip-mart">MART</span>
+      </div>
+      <div class="tbl-cols">
+        <div class="col-row"><div class="col-key">🔑</div><div class="col-name pk">record_key</div><div class="col-type">INT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">record_category</div><div class="col-type">VARCHAR</div><div class="col-note">wins/poles/titles...</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">record_type</div><div class="col-type">VARCHAR</div><div class="col-note">driver/constructor</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">holder_name</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">record_value</div><div class="col-type">DECIMAL</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">record_value_formatted</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">set_in_year</div><div class="col-type">SMALLINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">context_note</div><div class="col-type">TEXT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">prev_holder_name</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">prev_record_value</div><div class="col-type">DECIMAL</div></div>
+      </div>
+    </div>
+
+    <div class="tbl-card" style="border-top: 2px solid var(--purple);">
+      <div class="tbl-card-head">
+        <div class="tbl-icon" style="background:var(--purple-dim)">🤖</div>
+        <div><div class="tbl-name">mart_ai_context</div><div class="tbl-grain">1 row per driver — wide denorm for LLM</div></div>
+        <span class="tbl-badge chip chip-mcp">AI/MCP</span>
+      </div>
+      <div class="tbl-cols">
+        <div class="col-row"><div class="col-key">🔑</div><div class="col-name pk">driver_key</div><div class="col-type">BIGINT</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">full_name</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">nationality_flag</div><div class="col-type">VARCHAR</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">career_summary_text</div><div class="col-type">TEXT</div><div class="col-note">LLM-ready prose</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">stats_json</div><div class="col-type">JSON</div><div class="col-note">all career stats</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">season_by_season_json</div><div class="col-type">JSON</div><div class="col-note">per-year breakdown</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">top_circuits_json</div><div class="col-type">JSON</div><div class="col-note">best tracks</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">notable_races_json</div><div class="col-type">JSON</div><div class="col-note">memorable moments</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">records_held_json</div><div class="col-type">JSON</div><div class="col-note">current records</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">context_tokens_estimate</div><div class="col-type">INT</div><div class="col-note">for LLM context budget</div></div>
+        <div class="col-row"><div class="col-key"></div><div class="col-name">last_refreshed_at</div><div class="col-type">TIMESTAMP</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 10. MART SQL -->
+<!-- ═══════════════════════════════════════════════════ -->
+<section class="section" id="mart-sql">
+  <div class="section-header">
+    <div class="section-num">10</div>
+    <div>
+      <div class="section-title">Mart <span>SQL</span></div>
+      <div class="section-sub">Key mart definitions — the queries your dashboard actually runs against</div>
+    </div>
+  </div>
+
+  <div class="code-block mart"><span class="cmt">-- models/marts/mart_driver_career.sql
+-- One row per driver. Full refresh after each race batch (fast — ~1000 rows).</span>
+<span class="kw">{{</span> config(materialized=<span class="str">'table'</span>, schema=<span class="str">'marts'</span>, tags=[<span class="str">'mart'</span>, <span class="str">'driver'</span>]) <span class="kw">}}</span>
+
+<span class="kw">WITH</span> <span class="tbl">race_stats</span> <span class="kw">AS</span> (
+    <span class="kw">SELECT</span>
+        <span class="col">f.driver_key</span>,
+        <span class="fn">COUNT</span>(*)                                          <span class="kw">AS</span> <span class="col">total_race_starts</span>,
+        <span class="fn">SUM</span>(<span class="fn">CASE WHEN</span> <span class="col">f.is_winner</span>      <span class="kw">THEN</span> <span class="num">1</span> <span class="kw">ELSE</span> <span class="num">0</span> <span class="kw">END</span>)  <span class="kw">AS</span> <span class="col">total_wins</span>,
+        <span class="fn">SUM</span>(<span class="fn">CASE WHEN</span> <span class="col">f.is_podium</span>      <span class="kw">THEN</span> <span class="num">1</span> <span class="kw">ELSE</span> <span class="num">0</span> <span class="kw">END</span>)  <span class="kw">AS</span> <span class="col">total_podiums</span>,
+        <span class="fn">SUM</span>(<span class="fn">CASE WHEN</span> <span class="col">f.is_fastest_lap_point</span> <span class="kw">THEN</span> <span class="num">1</span> <span class="kw">ELSE</span> <span class="num">0</span> <span class="kw">END</span>) <span class="kw">AS</span> <span class="col">total_fastest_laps</span>,
+        <span class="fn">SUM</span>(<span class="col">f.points_scored</span>)                               <span class="kw">AS</span> <span class="col">total_points</span>,
+        <span class="fn">AVG</span>(<span class="col">f.grid_position</span>)                               <span class="kw">AS</span> <span class="col">avg_grid_position</span>,
+        <span class="fn">AVG</span>(<span class="col">f.finish_position</span>)                             <span class="kw">AS</span> <span class="col">avg_finish_position</span>,
+        <span class="fn">SUM</span>(<span class="fn">CASE WHEN</span> <span class="col">s.status_category</span> = <span class="str">'DNF'</span> <span class="kw">THEN</span> <span class="num">1</span> <span class="kw">ELSE</span> <span class="num">0</span> <span class="kw">END</span>) <span class="kw">AS</span> <span class="col">dnf_count</span>
+    <span class="kw">FROM</span>   <span class="kw">{{</span> ref(<span class="str">'fact_race_result'</span>) <span class="kw">}}</span>  <span class="col">f</span>
+    <span class="kw">JOIN</span>   <span class="kw">{{</span> ref(<span class="str">'dim_race_status'</span>) <span class="kw">}}</span>  <span class="col">s</span>  <span class="kw">ON</span> <span class="col">f.status_key</span> = <span class="col">s.status_key</span>
+    <span class="kw">WHERE</span>  <span class="col">f.is_sprint</span> = <span class="kw">FALSE</span>
+    <span class="kw">GROUP BY</span> <span class="num">1</span>
+),
+<span class="tbl">pole_stats</span> <span class="kw">AS</span> (
+    <span class="kw">SELECT</span>
+        <span class="col">driver_key</span>,
+        <span class="fn">SUM</span>(<span class="fn">CASE WHEN</span> <span class="col">is_pole_position</span> <span class="kw">THEN</span> <span class="num">1</span> <span class="kw">ELSE</span> <span class="num">0</span> <span class="kw">END</span>) <span class="kw">AS</span> <span class="col">total_poles</span>
+    <span class="kw">FROM</span>   <span class="kw">{{</span> ref(<span class="str">'fact_qualifying'</span>) <span class="kw">}}</span>
+    <span class="kw">GROUP BY</span> <span class="num">1</span>
+),
+<span class="tbl">title_count</span> <span class="kw">AS</span> (
+    <span class="kw">SELECT</span>
+        <span class="col">driver_key</span>,
+        <span class="fn">COUNT</span>(*) <span class="kw">AS</span> <span class="col">championship_titles</span>
+    <span class="kw">FROM</span>   <span class="kw">{{</span> ref(<span class="str">'mart_season_summary'</span>) <span class="kw">}}</span>  <span class="col">ss</span>
+    <span class="kw">JOIN</span>   <span class="kw">{{</span> ref(<span class="str">'dim_driver'</span>) <span class="kw">}}</span>           <span class="col">dd</span>  <span class="kw">ON</span> <span class="col">ss.driver_champion</span> = <span class="col">dd.full_name</span>
+    <span class="kw">GROUP BY</span> <span class="num">1</span>
+)
+<span class="kw">SELECT</span>
+    <span class="col">d.driver_key</span>,
+    <span class="col">d.full_name</span>,  <span class="col">d.nationality</span>,  <span class="col">d.flag_emoji</span>,
+    <span class="col">d.date_of_birth</span>, <span class="col">d.debut_year</span>, <span class="col">d.final_year</span>, <span class="col">d.is_active</span>,
+    <span class="col">rs.total_race_starts</span>,
+    <span class="fn">COALESCE</span>(<span class="col">rs.total_wins</span>, <span class="num">0</span>)          <span class="kw">AS</span> <span class="col">total_wins</span>,
+    <span class="fn">COALESCE</span>(<span class="col">rs.total_podiums</span>, <span class="num">0</span>)       <span class="kw">AS</span> <span class="col">total_podiums</span>,
+    <span class="fn">COALESCE</span>(<span class="col">ps.total_poles</span>, <span class="num">0</span>)         <span class="kw">AS</span> <span class="col">total_poles</span>,
+    <span class="fn">COALESCE</span>(<span class="col">rs.total_fastest_laps</span>, <span class="num">0</span>)  <span class="kw">AS</span> <span class="col">total_fastest_laps</span>,
+    <span class="fn">COALESCE</span>(<span class="col">rs.total_points</span>, <span class="num">0</span>)        <span class="kw">AS</span> <span class="col">total_points</span>,
+    <span class="fn">COALESCE</span>(<span class="col">tc.championship_titles</span>, <span class="num">0</span>) <span class="kw">AS</span> <span class="col">championship_titles</span>,
+    <span class="fn">ROUND</span>(<span class="col">rs.total_wins</span> * <span class="num">100.0</span> / <span class="fn">NULLIF</span>(<span class="col">rs.total_race_starts</span>, <span class="num">0</span>), <span class="num">2</span>) <span class="kw">AS</span> <span class="col">win_rate_pct</span>,
+    <span class="fn">ROUND</span>(<span class="col">rs.avg_grid_position</span>, <span class="num">2</span>)    <span class="kw">AS</span> <span class="col">avg_grid_position</span>,
+    <span class="fn">ROUND</span>(<span class="col">rs.avg_finish_position</span>, <span class="num">2</span>)  <span class="kw">AS</span> <span class="col">avg_finish_position</span>,
+    <span class="fn">COALESCE</span>(<span class="col">rs.dnf_count</span>, <span class="num">0</span>)          <span class="kw">AS</span> <span class="col">dnf_count</span>,
+    <span class="fn">CURRENT_TIMESTAMP</span>                   <span class="kw">AS</span> <span class="col">last_updated_at</span>
+<span class="kw">FROM</span> <span class="kw">{{</span> ref(<span class="str">'dim_driver'</span>) <span class="kw">}}</span>           <span class="col">d</span>
+<span class="kw">LEFT JOIN</span> <span class="tbl">race_stats</span>                   <span class="col">rs</span>  <span class="kw">ON</span> <span class="col">d.driver_key</span> = <span class="col">rs.driver_key</span>
+<span class="kw">LEFT JOIN</span> <span class="tbl">pole_stats</span>                   <span class="col">ps</span>  <span class="kw">ON</span> <span class="col">d.driver_key</span> = <span class="col">ps.driver_key</span>
+<span class="kw">LEFT JOIN</span> <span class="tbl">title_count</span>                  <span class="col">tc</span>  <span class="kw">ON</span> <span class="col">d.driver_key</span> = <span class="col">tc.driver_key</span>
+<span class="kw">ORDER BY</span> <span class="col">total_wins</span> <span class="kw">DESC</span>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 11. PARTITIONING -->
+<!-- ═══════════════════════════════════════════════════ -->
+<section class="section" id="partitioning">
+  <div class="section-header">
+    <div class="section-num">11</div>
+    <div>
+      <div class="section-title">Partitioning &amp; <span>Cost Strategy</span></div>
+      <div class="section-sub">Every decision justified by query scan reduction</div>
+    </div>
+  </div>
+
+  <div class="info-box red" style="margin-bottom:20px">
+    <h4>⚠️ The Golden Rule</h4>
+    <p>The <code>fact_lap_time</code> table will reach ~10 billion rows by 2030. <strong>Never let the dashboard query it directly.</strong> All lap-time queries go through <code>mart_driver_season</code> or aggregated materialized views. Direct lap queries are only for data engineering and deep analysis use-cases.</p>
+  </div>
+
+  <div style="overflow-x:auto; margin-bottom:24px">
+    <table class="part-table">
+      <thead><tr>
+        <th>Table</th><th>Partition Column</th><th>Cluster / Sort Keys</th><th>Materialisation</th><th>Estimated Rows</th><th>Scan Reduction</th>
+      </tr></thead>
+      <tbody>
+        <tr><td>fact_race_result</td><td>season_year (INT)</td><td>driver_key, constructor_key</td><td>Incremental table</td><td>~50K</td><td>~98% for single season</td></tr>
+        <tr><td>fact_qualifying</td><td>season_year (INT)</td><td>driver_key, race_key</td><td>Incremental table</td><td>~40K</td><td>~98% for single season</td></tr>
+        <tr><td>fact_pit_stop</td><td>season_year (INT)</td><td>driver_key, race_key</td><td>Incremental table</td><td>~120K</td><td>~98% for single season</td></tr>
+        <tr><td>fact_lap_time</td><td>season_year (INT), then race_key</td><td>driver_key</td><td>Incremental table</td><td>>500M</td><td>>99% for single season+driver</td></tr>
+        <tr><td>fact_driver_standing</td><td>season_year (INT)</td><td>driver_key</td><td>Full refresh table</td><td>~25K</td><td>~98% for single season</td></tr>
+        <tr><td>fact_constructor_standing</td><td>season_year (INT)</td><td>constructor_key</td><td>Full refresh table</td><td>~8K</td><td>~98% for single season</td></tr>
+        <tr><td>mart_driver_career</td><td>None</td><td>total_wins DESC</td><td>Full refresh table</td><td>~1K</td><td>Full scan is cheap</td></tr>
+        <tr><td>mart_driver_season</td><td>season_year</td><td>driver_key</td><td>Full refresh table</td><td>~20K</td><td>Season filter = 1 partition</td></tr>
+        <tr><td>mart_season_summary</td><td>None</td><td>season_year</td><td>Full refresh table</td><td>75 rows</td><td>Trivial</td></tr>
+        <tr><td>mart_ai_context</td><td>None</td><td>driver_key</td><td>Full refresh table</td><td>~1K</td><td>Full scan is cheap</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="g2">
+    <div class="info-box gold">
+      <h4>💡 BigQuery Optimisations</h4>
+      <ul>
+        <li>Use <strong>INTEGER RANGE partitioning</strong> on season_year (1950–2030, interval=1).</li>
+        <li>Enable <strong>column-level stats</strong> on driver_key and constructor_key for partition pruning hints.</li>
+        <li>Set <strong>table expiry</strong> on staging tables: 7 days. They're re-loadable from S3.</li>
+        <li><strong>Flat-rate pricing</strong> for the dashboard (BI Engine reservation) — marts are queried constantly.</li>
+        <li>Use <strong>materialized views</strong> with <code>enable_refresh=true</code> for the top-5 dashboard queries.</li>
+      </ul>
+    </div>
+    <div class="info-box cyan">
+      <h4>❄️ Snowflake Optimisations</h4>
+      <ul>
+        <li>Use <strong>CLUSTER BY (season_year, driver_key)</strong> on all main fact tables.</li>
+        <li>Suspend warehouse after <strong>1 minute idle</strong> — dashboard queries are sub-second on marts.</li>
+        <li>Use <strong>SEARCH OPTIMIZATION</strong> on dim_driver.full_name for AI/MCP free-text lookups.</li>
+        <li>Store mart tables as <strong>Transient</strong> (no fail-safe) — they rebuild from facts on every run.</li>
+        <li>Use <strong>Multi-cluster warehouses</strong> only during race-day batch loads.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 12. MCP / AI LAYER -->
+<!-- ═══════════════════════════════════════════════════ -->
+<section class="section" id="mcp">
+  <div class="section-header">
+    <div class="section-num">12</div>
+    <div>
+      <div class="section-title">MCP / AI <span>Semantic Layer</span></div>
+      <div class="section-sub">How Claude queries this warehouse using natural language via MCP</div>
+    </div>
+  </div>
+
+  <div class="info-box purple" style="margin-bottom:24px">
+    <h4>🤖 Architecture: How the AI Layer Works</h4>
+    <p>An MCP server exposes warehouse read access to Claude. The <code>semantic_catalog</code> table gives Claude plain-English descriptions of every table and column. The <code>nl_prompt_store</code> maps common question patterns to pre-validated SQL. The <code>mart_ai_context</code> wide table lets Claude answer driver questions with a single primary-key lookup — no joins needed in the LLM context.</p>
+  </div>
+
+  <div class="code-block mcp"><span class="cmt">-- models/marts/ai/semantic_catalog.sql
+-- The MCP server reads this table to understand the schema before generating SQL.</span>
+<span class="kw">{{</span> config(materialized=<span class="str">'table'</span>, schema=<span class="str">'marts_ai'</span>) <span class="kw">}}</span>
+
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> (
+    <span class="kw">VALUES</span>
+    <span class="cmt">-- (schema, table_name, column_name, data_type, description, example_values, is_filterable)</span>
+
+    (<span class="str">'marts'</span>, <span class="str">'mart_driver_career'</span>, <span class="str">'full_name'</span>,          <span class="str">'VARCHAR'</span>,
+     <span class="str">'Full name of the Formula 1 driver in "Forename Surname" format'</span>,
+     <span class="str">'Lewis Hamilton, Max Verstappen, Ayrton Senna'</span>, <span class="kw">TRUE</span>),
+
+    (<span class="str">'marts'</span>, <span class="str">'mart_driver_career'</span>, <span class="str">'championship_titles'</span>, <span class="str">'INT'</span>,
+     <span class="str">'Number of F1 World Driver Championship titles won in their career'</span>,
+     <span class="str">'7 (Hamilton/Schumacher), 5 (Fangio), 4 (Vettel)'</span>, <span class="kw">TRUE</span>),
+
+    (<span class="str">'marts'</span>, <span class="str">'mart_driver_career'</span>, <span class="str">'total_wins'</span>,          <span class="str">'INT'</span>,
+     <span class="str">'Total race wins in the drivers F1 career, excluding sprint races'</span>,
+     <span class="str">'103 (Hamilton), 91 (Schumacher), 62 (Verstappen)'</span>, <span class="kw">TRUE</span>),
+
+    (<span class="str">'marts'</span>, <span class="str">'mart_driver_career'</span>, <span class="str">'win_rate_pct'</span>,        <span class="str">'DECIMAL'</span>,
+     <span class="str">'Percentage of race starts that resulted in a win. Use for era-adjusted comparisons.'</span>,
+     <span class="str">'46.2 (Fangio), 34.2 (Clark), 31.8 (Verstappen)'</span>, <span class="kw">TRUE</span>),
+
+    (<span class="str">'marts'</span>, <span class="str">'mart_season_summary'</span>, <span class="str">'season_year'</span>,         <span class="str">'SMALLINT'</span>,
+     <span class="str">'The F1 World Championship year, ranging from 1950 to present'</span>,
+     <span class="str">'2024, 2023, 2021, 1994, 1976'</span>, <span class="kw">TRUE</span>),
+
+    (<span class="str">'marts'</span>, <span class="str">'mart_season_summary'</span>, <span class="str">'closest_championship_gap'</span>, <span class="str">'DECIMAL'</span>,
+     <span class="str">'Points gap between champion and runner-up at season end. 0.5 points in 1984 is the closest ever.'</span>,
+     <span class="str">'0.5 (1984), 7.5 (2021), 8 (2008)'</span>, <span class="kw">TRUE</span>),
+
+    (<span class="str">'core'</span>, <span class="str">'fact_race_result'</span>, <span class="str">'season_year'</span>,          <span class="str">'SMALLINT'</span>,
+     <span class="str">'PARTITION KEY. Always filter on this for cost-efficient queries.'</span>,
+     <span class="str">'1950..2024'</span>, <span class="kw">TRUE</span>)
+
+    <span class="cmt">-- ... 200+ more rows covering every relevant column</span>
+) <span class="kw">AS</span> <span class="col">t</span>(<span class="col">schema_name</span>, <span class="col">table_name</span>, <span class="col">column_name</span>, <span class="col">data_type</span>, <span class="col">description</span>, <span class="col">example_values</span>, <span class="col">is_filterable</span>)
+</div>
+
+  <div class="code-block mcp"><span class="cmt">-- models/marts/ai/nl_prompt_store.sql
+-- Pre-validated SQL templates for common natural-language questions.
+-- MCP server picks the closest match and fills in parameters.</span>
+<span class="kw">{{</span> config(materialized=<span class="str">'table'</span>, schema=<span class="str">'marts_ai'</span>) <span class="kw">}}</span>
+
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> (
+    <span class="kw">VALUES</span>
+    <span class="cmt">-- (prompt_id, intent, example_nl_question, sql_template, required_params)</span>
+
+    (<span class="num">1</span>, <span class="str">'driver_career_stats'</span>,
+     <span class="str">'How many wins does {driver} have?'</span>,
+     <span class="str">'SELECT total_wins, total_podiums, total_poles, championship_titles
+      FROM marts.mart_driver_career
+      WHERE LOWER(full_name) LIKE LOWER(:driver_name)
+      LIMIT 1'</span>,
+     <span class="str">'{driver_name}'</span>),
+
+    (<span class="num">2</span>, <span class="str">'season_standings'</span>,
+     <span class="str">'Who won the {year} championship?'</span>,
+     <span class="str">'SELECT driver_champion, constructor_champion, champion_wins, champion_points,
+             total_races, closest_championship_gap
+      FROM marts.mart_season_summary
+      WHERE season_year = :year'</span>,
+     <span class="str">'{year}'</span>),
+
+    (<span class="num">3</span>, <span class="str">'head_to_head'</span>,
+     <span class="str">'Compare {driver_a} vs {driver_b}'</span>,
+     <span class="str">'SELECT a.full_name AS driver_a, a.total_wins AS a_wins, a.championship_titles AS a_titles,
+             b.full_name AS driver_b, b.total_wins AS b_wins, b.championship_titles AS b_titles,
+             a.win_rate_pct AS a_win_rate, b.win_rate_pct AS b_win_rate
+      FROM marts.mart_driver_career a
+      CROSS JOIN marts.mart_driver_career b
+      WHERE LOWER(a.full_name) LIKE LOWER(:driver_a)
+        AND LOWER(b.full_name) LIKE LOWER(:driver_b)'</span>,
+     <span class="str">'{driver_a}, {driver_b}'</span>),
+
+    (<span class="num">4</span>, <span class="str">'circuit_history'</span>,
+     <span class="str">'Who has the most wins at {circuit}?'</span>,
+     <span class="str">'SELECT d.full_name, COUNT(*) AS wins_at_circuit
+      FROM core.fact_race_result f
+      JOIN core.dim_driver d ON f.driver_key = d.driver_key
+      JOIN core.dim_race dr ON f.race_key = dr.race_key
+      JOIN core.dim_circuit c ON dr.circuit_key = c.circuit_key
+      WHERE LOWER(c.circuit_name) LIKE LOWER(:circuit_name) AND f.is_winner = TRUE
+      GROUP BY 1 ORDER BY 2 DESC LIMIT 5'</span>,
+     <span class="str">'{circuit_name}'</span>),
+
+    (<span class="num">5</span>, <span class="str">'constructor_dominance'</span>,
+     <span class="str">'Which team dominated the {decade}s?'</span>,
+     <span class="str">'SELECT c.constructor_name, COUNT(*) AS titles
+      FROM marts.mart_season_summary ss
+      JOIN core.dim_constructor c ON ss.constructor_champion = c.constructor_name
+      WHERE ss.season_year BETWEEN :decade_start AND :decade_start + 9
+      GROUP BY 1 ORDER BY 2 DESC'</span>,
+     <span class="str">'{decade_start}'</span>)
+
+) <span class="kw">AS</span> <span class="col">t</span>(<span class="col">prompt_id</span>, <span class="col">intent</span>, <span class="col">example_nl_question</span>, <span class="col">sql_template</span>, <span class="col">required_params</span>)
+</div>
+
+  <p style="font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-bottom:20px">The MCP server flow:</p>
+  <div class="erd-wrap">
+    <svg viewBox="0 0 900 120" style="width:100%;height:80px">
+      <defs>
+        <marker id="ra2" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L7,3 z" fill="#bf5af2"/>
+        </marker>
+      </defs>
+      <rect x="0" y="20" width="130" height="50" rx="4" fill="#1a1020" stroke="#bf5af2" stroke-width="1.5"/>
+      <text x="65" y="44" text-anchor="middle" font-family="JetBrains Mono" font-size="10" fill="#bf5af2">User Question</text>
+      <text x="65" y="60" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#6e6e85">NL input</text>
+      <line x1="130" y1="45" x2="165" y2="45" stroke="#bf5af2" stroke-width="1.5" marker-end="url(#ra2)"/>
+
+      <rect x="165" y="20" width="145" height="50" rx="4" fill="#1a1020" stroke="#bf5af2" stroke-width="1.5"/>
+      <text x="237" y="44" text-anchor="middle" font-family="JetBrains Mono" font-size="10" fill="#bf5af2">MCP Server</text>
+      <text x="237" y="60" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#6e6e85">reads semantic_catalog</text>
+      <line x1="310" y1="45" x2="345" y2="45" stroke="#bf5af2" stroke-width="1.5" marker-end="url(#ra2)"/>
+
+      <rect x="345" y="20" width="145" height="50" rx="4" fill="#1a1020" stroke="#bf5af2" stroke-width="1.5"/>
+      <text x="417" y="44" text-anchor="middle" font-family="JetBrains Mono" font-size="10" fill="#bf5af2">Claude (LLM)</text>
+      <text x="417" y="60" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#6e6e85">matches nl_prompt_store</text>
+      <line x1="490" y1="45" x2="525" y2="45" stroke="#bf5af2" stroke-width="1.5" marker-end="url(#ra2)"/>
+
+      <rect x="525" y="20" width="145" height="50" rx="4" fill="#1a1020" stroke="#bf5af2" stroke-width="1.5"/>
+      <text x="597" y="44" text-anchor="middle" font-family="JetBrains Mono" font-size="10" fill="#bf5af2">SQL Execution</text>
+      <text x="597" y="60" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#6e6e85">hits mart tables</text>
+      <line x1="670" y1="45" x2="705" y2="45" stroke="#bf5af2" stroke-width="1.5" marker-end="url(#ra2)"/>
+
+      <rect x="705" y="20" width="145" height="50" rx="4" fill="#1a1020" stroke="#00e5ff" stroke-width="1.5"/>
+      <text x="777" y="44" text-anchor="middle" font-family="JetBrains Mono" font-size="10" fill="#00e5ff">AI Insight</text>
+      <text x="777" y="60" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#6e6e85">formatted response</text>
+    </svg>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 13. INGESTION FLOW -->
+<!-- ═══════════════════════════════════════════════════ -->
+<section class="section" id="ingestion">
+  <div class="section-header">
+    <div class="section-num">13</div>
+    <div>
+      <div class="section-title">Post-Race <span>Ingestion Flow</span></div>
+      <div class="section-sub">What happens in the hours after each Grand Prix</div>
+    </div>
+  </div>
+
+  <div class="code-block"><span class="cmt">## Airflow DAG: f1_post_race_pipeline
+## Trigger: S3 PutObject event on s3://f1-raw/live-feed/YYYY/race_NNN/
+## Target SLA: Dashboard updated within 3 hours of chequered flag</span>
+
+<span class="kw">DAG</span>: f1_post_race_pipeline
+  <span class="kw">schedule</span>: S3 event trigger (EventBridge → SNS → Airflow API)
+  <span class="kw">concurrency</span>: 1  <span class="cmt"># Only one race at a time</span>
+
+  <span class="tbl">1. s3_sensor</span>
+      ↳ Watches <span class="str">s3://f1-raw/live-feed/{year}/race_{round}/complete.flag</span>
+      ↳ Timeout: 6 hours post-race
+
+  <span class="tbl">2. pyspark_ingest</span>  [EMR Serverless / Databricks Job]
+      ↳ Read new CSV files from S3 Bronze partition
+      ↳ Schema validation (Great Expectations)
+      ↳ MERGE into Silver staging tables (upsert on natural key)
+      ↳ Write audit record to <span class="col">pipeline_log</span>
+
+  <span class="tbl">3. dbt_run_incremental</span>
+      ↳ <span class="str">dbt run --select tag:incremental --vars '{"race_id": NNN}'</span>
+      ↳ Builds: fact_race_result, fact_qualifying, fact_pit_stop, fact_lap_time
+      ↳ Builds: fact_driver_standing, fact_constructor_standing
+
+  <span class="tbl">4. dbt_run_marts</span>
+      ↳ <span class="str">dbt run --select marts.*</span>
+      ↳ Full refresh of all 9 mart tables (~2 min total)
+
+  <span class="tbl">5. dbt_test</span>
+      ↳ <span class="str">dbt test --select marts.*</span>
+      ↳ Assert: no null FKs, standings are monotonic, grain is unique
+
+  <span class="tbl">6. invalidate_cache</span>
+      ↳ POST /api/cache/invalidate on dashboard service
+      ↳ Notify: Slack #f1-data-ops channel
+
+  <span class="tbl">7. mcp_context_refresh</span>
+      ↳ Rebuild mart_ai_context for drivers with new data
+      ↳ Update mcp_query_log with race metadata
+
+<span class="kw">Total pipeline time</span>: ~25–40 minutes end-to-end
+</div>
+
+  <div class="info-box green">
+    <h4>✅ Data Quality Gates</h4>
+    <ul>
+      <li><strong>Row count check:</strong> New race must have 16–24 result rows (modern grid size). Pipeline fails if outside range.</li>
+      <li><strong>Points validation:</strong> Sum of points in a race must match expected total for the era (e.g., top-10 points system post-2010).</li>
+      <li><strong>Referential integrity:</strong> Every result's driver_id and constructor_id must exist in dim tables before fact load.</li>
+      <li><strong>Duplicate guard:</strong> MERGE on (race_id, driver_id) prevents double-loading the same race.</li>
+      <li><strong>Freshness alert:</strong> If staging tables haven't received new rows within 12 hours of race day, PagerDuty alert fires.</li>
+    </ul>
+  </div>
+
+  <div class="info-box cyan">
+    <h4>📋 Summary — Full Table Inventory</h4>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:12px">
+      <div>
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--text-dim);margin-bottom:8px">STAGING (13)</div>
+        <div class="chip-list">
+          <span class="chip chip-stg">stg_drivers</span><span class="chip chip-stg">stg_constructors</span><span class="chip chip-stg">stg_circuits</span><span class="chip chip-stg">stg_seasons</span><span class="chip chip-stg">stg_races</span><span class="chip chip-stg">stg_results</span><span class="chip chip-stg">stg_qualifying</span><span class="chip chip-stg">stg_pit_stops</span><span class="chip chip-stg">stg_lap_times</span><span class="chip chip-stg">stg_driver_standings</span><span class="chip chip-stg">stg_constructor_standings</span><span class="chip chip-stg">stg_status</span><span class="chip chip-stg">stg_sprint_results</span>
+        </div>
+      </div>
+      <div>
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--text-dim);margin-bottom:8px">CORE DIMS (7) + FACTS (6)</div>
+        <div class="chip-list">
+          <span class="chip chip-dim">dim_driver</span><span class="chip chip-dim">dim_constructor</span><span class="chip chip-dim">dim_circuit</span><span class="chip chip-dim">dim_race</span><span class="chip chip-dim">dim_season</span><span class="chip chip-dim">dim_date</span><span class="chip chip-dim">dim_race_status</span><span class="chip chip-fact">fact_race_result</span><span class="chip chip-fact">fact_qualifying</span><span class="chip chip-fact">fact_pit_stop</span><span class="chip chip-fact">fact_lap_time</span><span class="chip chip-fact">fact_driver_standing</span><span class="chip chip-fact">fact_constructor_standing</span>
+        </div>
+      </div>
+      <div>
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--text-dim);margin-bottom:8px">MARTS (9 + 3 AI)</div>
+        <div class="chip-list">
+          <span class="chip chip-mart">mart_driver_career</span><span class="chip chip-mart">mart_driver_season</span><span class="chip chip-mart">mart_constructor_career</span><span class="chip chip-mart">mart_constructor_season</span><span class="chip chip-mart">mart_season_summary</span><span class="chip chip-mart">mart_circuit_stats</span><span class="chip chip-mart">mart_race_summary</span><span class="chip chip-mart">mart_head_to_head</span><span class="chip chip-mart">mart_records</span><span class="chip chip-mcp">mart_ai_context</span><span class="chip chip-mcp">semantic_catalog</span><span class="chip chip-mcp">nl_prompt_store</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<script>
+// Highlight active nav on scroll
+const sections = document.querySelectorAll('.section');
+const navItems = document.querySelectorAll('.nav-item');
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      navItems.forEach(n => n.classList.remove('active'));
+      const id = e.target.id;
+      const match = document.querySelector(`.nav-item[href="#${id}"]`);
+      if (match) match.classList.add('active');
+    }
+  });
+}, { threshold: 0.3 });
+sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>
