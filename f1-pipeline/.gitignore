@@ -32,3 +32,24 @@ orchestration/logs/
 *.swp
 .DS_Store
 Thumbs.db
+
+# ── Logs ─────────────────────────────────────────────────────────
+logs/
+
+.logs/
+.claude/
+.aiexclude
+
+# ── Data & Outputs ───────────────────────────────────────────────
+data/
+output/
+*.csv
+data/**/*.json
+output/**/*.json
+*.parquet
+
+# ── Testing & Exploration ────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/

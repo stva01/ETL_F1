@@ -1,0 +1,27 @@
+# Python System & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# F1 Pipeline Data (Likely the culprit)
+# If you are downloading race data locally, ignore those directories
+data/
+raw_data/
+*.csv
+*.jsonl
+*.parquet
+
+# IDE & Tooling
+.vscode/
+.idea/
+.git/
+.antigravity/
+
+# Logs
+*.log
+ingestion/utils/logs/
