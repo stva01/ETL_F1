@@ -1,17 +1,20 @@
 """
 clean_kaggle.py — PySpark job (Databricks / AWS Glue)
 
-Reads 14 Kaggle CSVs from the raw zone, applies:
+Reads 14 Kaggle CSVs from the raw zone in S3, applies:
   - \\N → null replacement
   - Explicit type casting per table
   - Lap-time string parsing ("M:SS.mmm" → milliseconds)
   - Deduplication
-  - Writes clean Parquet to the processed zone
+  - Writes clean Parquet to the processed zone in S3
 
-Databricks → Glue migration:
-  1. Remove the SparkSession builder (Glue provides it)
-  2. Switch MODE to "glue"
-  Everything else stays identical.
+Both environments use S3 + manifest-based incremental processing.
+MODE only controls Spark session init and S3 scheme (s3a:// vs s3://).
+
+Credentials:
+  - Databricks: Set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION
+    as environment variables (cluster config or notebook widgets).
+  - Glue:       IAM execution role provides credentials automatically.
 """
 
 from pyspark.sql import SparkSession, functions as F
@@ -19,31 +22,43 @@ from pyspark.sql.types import (
     StructType, StructField,
     IntegerType, LongType, DoubleType, StringType, DateType,
 )
+import os
+import boto3
+from botocore.exceptions import ClientError
+import json
+from datetime import datetime, timezone
 
 # ── Configuration ────────────────────────────────────────────────
 MODE = "databricks"  # "databricks" | "glue"
 
-PATHS = {
-    "databricks": {
-        "raw":       "/FileStore/f1-pipeline/raw/kaggle",
-        "processed": "/FileStore/f1-pipeline/processed/kaggle",
-    },
-    "glue": {
-        "raw":       "s3://f1-raw-satva/raw/kaggle",
-        "processed": "s3://f1-processed-satva/processed/kaggle",
-    },
-}
+# S3 bucket names — read from environment variables
+S3_RAW_BUCKET       = os.environ.get("S3_RAW_BUCKET", "f1-pipeline-raw-layer-034381339055")
+S3_PROCESSED_BUCKET = os.environ.get("S3_PROCESSED_BUCKET", "f1-pipeline-processed-layer-034381339055")
+AWS_REGION          = os.environ.get("AWS_REGION", "ap-south-1")
 
-RAW_BASE       = PATHS[MODE]["raw"]
-PROCESSED_BASE = PATHS[MODE]["processed"]
+# S3 scheme: Databricks uses s3a://, Glue uses s3://
+S3_SCHEME = "s3a" if MODE == "databricks" else "s3"
 
-# ── Spark Session (remove for Glue) ─────────────────────────────
-spark = (
-    SparkSession.builder
-    .appName("clean_kaggle")
-    .getOrCreate()
-)
-spark.sparkContext.setLogLevel("WARN")
+RAW_BASE       = f"{S3_SCHEME}://{S3_RAW_BUCKET}/raw/kaggle"
+PROCESSED_BASE = f"{S3_SCHEME}://{S3_PROCESSED_BUCKET}/processed/kaggle"
+
+# Manifest storage
+MANIFEST_BUCKET = S3_RAW_BUCKET
+MANIFEST_PREFIX = "meta/manifests"
+
+# ── Spark Session ───────────────────────────────────────────────
+if MODE == "databricks":
+    spark = (
+        SparkSession.builder
+        .appName("clean_kaggle")
+        .config("spark.hadoop.fs.s3a.access.key", os.environ["AWS_ACCESS_KEY_ID"])
+        .config("spark.hadoop.fs.s3a.secret.key", os.environ["AWS_SECRET_ACCESS_KEY"])
+        .config("spark.hadoop.fs.s3a.endpoint", f"s3.{AWS_REGION}.amazonaws.com")
+        .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+        .getOrCreate()
+    )
+    spark.sparkContext.setLogLevel("WARN")
+# In Glue: spark is provided by GlueContext — do not create it.
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -104,6 +119,59 @@ def write_parquet(df, table_name, partition_cols=None):
     writer.parquet(path)
     count = df.count()
     print(f"  ✓ Wrote {table_name} → {path}  ({count:,} rows)")
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  MANIFEST HELPERS  (Glue mode only — skipped in Databricks)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+_manifest_s3 = None
+
+
+def _get_manifest_s3():
+    """Lazy-init S3 client for manifest operations."""
+    global _manifest_s3
+    if _manifest_s3 is None:
+        _manifest_s3 = boto3.client("s3")
+    return _manifest_s3
+
+
+def load_manifest(source):
+    """Read manifest JSON from S3. Returns empty manifest if not found."""
+    key = f"{MANIFEST_PREFIX}/{source}_manifest.json"
+    try:
+        obj = _get_manifest_s3().get_object(Bucket=MANIFEST_BUCKET, Key=key)
+        return json.loads(obj["Body"].read())
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "NoSuchKey":
+            return {"last_updated": None, "processed": {}}
+        raise
+
+
+def save_manifest(source, manifest):
+    """Write manifest dict back to S3 with updated timestamp."""
+    manifest["last_updated"] = datetime.now(timezone.utc).isoformat()
+    key = f"{MANIFEST_PREFIX}/{source}_manifest.json"
+    _get_manifest_s3().put_object(
+        Bucket=MANIFEST_BUCKET,
+        Key=key,
+        Body=json.dumps(manifest, indent=2),
+        ContentType="application/json",
+    )
+
+
+def mark_file_done(s3_path, manifest):
+    """Record an S3 path as successfully processed in the manifest dict."""
+    manifest["processed"][s3_path] = datetime.now(timezone.utc).isoformat()
+
+
+def get_unprocessed(source, all_raw_paths):
+    """Return (unprocessed_paths, manifest) for the given source."""
+    manifest = load_manifest(source)
+    already = set(manifest["processed"].keys())
+    unprocessed = [p for p in all_raw_paths if p not in already]
+    print(f"  {source}: {len(already)} already processed, {len(unprocessed)} new")
+    return unprocessed, manifest
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -467,6 +535,25 @@ def clean_sprint_results():
     write_parquet(df, "sprint_results", partition_cols=["year"])
 
 
+# ── Table cleaner lookup ─────────────────────────────────────
+TABLE_CLEANERS = {
+    "circuits":               clean_circuits,
+    "constructors":           clean_constructors,
+    "drivers":                clean_drivers,
+    "seasons":                clean_seasons,
+    "status":                 clean_status,
+    "races":                  clean_races,
+    "results":                clean_results,
+    "qualifying":             clean_qualifying,
+    "lap_times":              clean_lap_times,
+    "pit_stops":              clean_pit_stops,
+    "driver_standings":       clean_driver_standings,
+    "constructor_standings":  clean_constructor_standings,
+    "constructor_results":    clean_constructor_results,
+    "sprint_results":         clean_sprint_results,
+}
+
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  MAIN
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -479,23 +566,28 @@ def main():
     print(f"  PROCESSED: {PROCESSED_BASE}")
     print("=" * 60)
 
-    # Reference tables (no partitioning)
-    clean_circuits()
-    clean_constructors()
-    clean_drivers()
-    clean_seasons()
-    clean_status()
+    ALL_RAW_PATHS = [f"raw/kaggle/{name}.csv" for name in [
+        "circuits", "constructors", "drivers", "races", "results",
+        "qualifying", "lap_times", "pit_stops", "driver_standings",
+        "constructor_standings", "constructor_results", "sprint_results",
+        "seasons", "status",
+    ]]
 
-    # Fact / event tables (partitioned by year)
-    clean_races()
-    clean_results()
-    clean_qualifying()
-    clean_lap_times()
-    clean_pit_stops()
-    clean_driver_standings()
-    clean_constructor_standings()
-    clean_constructor_results()
-    clean_sprint_results()
+    unprocessed, manifest = get_unprocessed("kaggle", ALL_RAW_PATHS)
+    if not unprocessed:
+        print("All files already processed — nothing to do.")
+        return
+
+    for raw_path in unprocessed:
+        table_name = raw_path.split("/")[-1].replace(".csv", "")
+        cleaner_fn = TABLE_CLEANERS[table_name]
+        try:
+            cleaner_fn()
+            mark_file_done(raw_path, manifest)
+            save_manifest("kaggle", manifest)
+        except Exception as e:
+            print(f"  ✗ Error processing {table_name}: {e}")
+            raise
 
     print("=" * 60)
     print("clean_kaggle.py — Complete ✓")

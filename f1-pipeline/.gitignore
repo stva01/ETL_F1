@@ -19,7 +19,7 @@ venv/
 
 # ── dbt ──────────────────────────────────────────────────────────
 warehouse/dbt/target/
-warehouse/dbt/dbt_packages/
+warehouse/dbt/dbt_packages/         
 warehouse/dbt/logs/
 
 # ── Airflow ──────────────────────────────────────────────────────
