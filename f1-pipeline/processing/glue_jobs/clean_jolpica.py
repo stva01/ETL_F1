@@ -1,54 +1,139 @@
 """
-clean_jolpica.py — PySpark job (Databricks / AWS Glue)
+clean_jolpica.py — AWS Glue PySpark job
 
-Reads nested Ergast-format JSON from the Jolpica API raw zone,
-flattens the deeply nested structure, casts types, and writes
-clean Parquet to the processed zone.
+Reads nested Ergast-format JSON from the Jolpica API raw zone in S3,
+flattens the deeply nested structure, casts types, deduplicates, and
+writes clean Parquet to the processed zone in S3.
 
-Handles endpoints:
-  - results       → one row per driver-result
-  - qualifying    → one row per driver-qualifying
-  - pitstops      → one row per pit stop
-  - driver_standings → one row per driver-standing
+Uses manifest-based incremental processing — identical pattern to
+clean_kaggle.py and OpenF1_Cleaner.ipynb.
+
+Handles 6 endpoints per round:
+  - results               → one row per driver-result
+  - qualifying            → one row per driver-qualifying
+  - pitstops              → one row per pit stop
+  - driver_standings      → one row per driver-standing
   - constructor_standings → one row per constructor-standing
-  - sprint        → one row per sprint result
+  - sprint                → one row per sprint result (sprint weekends only)
 
-Databricks → Glue migration:
-  1. Remove the SparkSession builder (Glue provides it)
-  2. Switch MODE to "glue"
+Raw S3 layout:
+  raw/jolpica/seasons/{year}/round_{NN}/{endpoint}.json
+
+Each JSON file contains the full Ergast wrapper:
+  MRData.RaceTable.Races[].Results[]
+  MRData.StandingsTable.StandingsLists[].DriverStandings[]
+  etc.
 """
 
-from pyspark.sql import SparkSession, functions as F, Row
+import os
+import sys
+import json
+from datetime import datetime, timezone
+
+import boto3
+from botocore.exceptions import ClientError
+
+from awsglue.transforms import *
+from awsglue.utils import getResolvedOptions
+from pyspark.context import SparkContext
+from awsglue.context import GlueContext
+from awsglue.job import Job
+from pyspark.sql import functions as F
 from pyspark.sql.types import (
-    StructType, StructField,
     IntegerType, LongType, DoubleType, StringType,
 )
-import json
 
-# ── Configuration ────────────────────────────────────────────────
-MODE = "databricks"  # "databricks" | "glue"
 
-PATHS = {
-    "databricks": {
-        "raw":       "/FileStore/f1-pipeline/raw/jolpica",
-        "processed": "/FileStore/f1-pipeline/processed/jolpica",
-    },
-    "glue": {
-        "raw":       "s3://f1-raw-satva/raw/jolpica",
-        "processed": "s3://f1-processed-satva/processed/jolpica",
-    },
-}
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  CONFIGURATION
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-RAW_BASE       = PATHS[MODE]["raw"]
-PROCESSED_BASE = PATHS[MODE]["processed"]
+MODE = "glue"
 
-# ── Spark Session (remove for Glue) ─────────────────────────────
-spark = (
-    SparkSession.builder
-    .appName("clean_jolpica")
-    .getOrCreate()
-)
+# S3 bucket names — read from Glue job parameters or env defaults
+S3_RAW_BUCKET       = os.environ.get("S3_RAW_BUCKET", "f1-pipeline-raw-layer-034381339055")
+S3_PROCESSED_BUCKET = os.environ.get("S3_PROCESSED_BUCKET", "f1-pipeline-processed-layer-034381339055")
+AWS_REGION          = os.environ.get("AWS_REGION", "ap-south-1")
+
+RAW_BASE       = f"s3://{S3_RAW_BUCKET}/raw/jolpica"
+PROCESSED_BASE = f"s3://{S3_PROCESSED_BUCKET}/processed/jolpica"
+
+# Manifest storage — same bucket as raw, under meta/manifests/
+MANIFEST_BUCKET = S3_RAW_BUCKET
+MANIFEST_PREFIX = "meta/manifests"
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  GLUE SESSION INIT
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+sc          = SparkContext.getOrCreate()
+glueContext = GlueContext(sc)
+spark       = glueContext.spark_session
+
+job = Job(glueContext)
+try:
+    args = getResolvedOptions(sys.argv, ["JOB_NAME"])
+    job.init(args["JOB_NAME"], args)
+except Exception:
+    job.init("f1-jolpica-clean", {})
+
 spark.sparkContext.setLogLevel("WARN")
+
+print(f"MODE:      {MODE}")
+print(f"RAW:       {RAW_BASE}")
+print(f"PROCESSED: {PROCESSED_BASE}")
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  MANIFEST HELPERS  (identical to clean_kaggle.py & OpenF1_Cleaner)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+_manifest_s3 = None
+
+
+def _get_manifest_s3():
+    """Lazy-init S3 client for manifest operations."""
+    global _manifest_s3
+    if _manifest_s3 is None:
+        _manifest_s3 = boto3.client("s3")
+    return _manifest_s3
+
+
+def load_manifest(source):
+    """Read manifest JSON from S3. Returns empty manifest if not found."""
+    key = f"{MANIFEST_PREFIX}/{source}_manifest.json"
+    try:
+        obj = _get_manifest_s3().get_object(Bucket=MANIFEST_BUCKET, Key=key)
+        return json.loads(obj["Body"].read())
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "NoSuchKey":
+            return {"last_updated": None, "processed": {}}
+        raise
+
+
+def save_manifest(source, manifest):
+    """Write manifest dict back to S3 with updated timestamp."""
+    manifest["last_updated"] = datetime.now(timezone.utc).isoformat()
+    key = f"{MANIFEST_PREFIX}/{source}_manifest.json"
+    _get_manifest_s3().put_object(
+        Bucket=MANIFEST_BUCKET, Key=key,
+        Body=json.dumps(manifest, indent=2), ContentType="application/json",
+    )
+
+
+def mark_file_done(s3_path, manifest):
+    """Record an S3 path as successfully processed in the manifest dict."""
+    manifest["processed"][s3_path] = datetime.now(timezone.utc).isoformat()
+
+
+def get_unprocessed(source, all_raw_paths):
+    """Return (unprocessed_paths, manifest) for the given source."""
+    manifest = load_manifest(source)
+    already = set(manifest["processed"].keys())
+    unprocessed = [p for p in all_raw_paths if p not in already]
+    print(f"  {source}: {len(already)} already processed, {len(unprocessed)} new")
+    return unprocessed, manifest
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -57,7 +142,16 @@ spark.sparkContext.setLogLevel("WARN")
 
 @F.udf(LongType())
 def parse_lap_time_ms(time_str):
-    """Convert "M:SS.mmm" or "SS.mmm" → milliseconds."""
+    """
+    Convert a lap-time string to milliseconds.
+    Handles formats:
+      "1:27.452"  → 87452
+      "27.452"    → 27452  (no minutes)
+    Returns None for null / unparseable input.
+
+    Identical to the UDF in clean_kaggle.py — ensures
+    Jolpica times are stored in the same unit as Kaggle.
+    """
     if time_str is None:
         return None
     try:
@@ -77,82 +171,45 @@ def parse_lap_time_ms(time_str):
         return None
 
 
-def write_parquet(df, table_name, partition_cols=None):
-    """Write a DataFrame as Parquet (optionally partitioned)."""
-    path = f"{PROCESSED_BASE}/{table_name}"
-    writer = df.write.mode("overwrite")
-    if partition_cols:
-        writer = writer.partitionBy(*partition_cols)
-    writer.parquet(path)
-    count = df.count()
-    print(f"  ✓ Wrote {table_name} → {path}  ({count:,} rows)")
-
-
 def discover_round_paths():
     """
-    Discover all season/round directories that contain data.
-    Returns a list of dicts: {"season": int, "round": int, "path": str}
+    Discover all season/round directories in S3 that contain data.
+    Returns list of dicts: {"season": int, "round": int, "path": str}
 
-    In Databricks, uses dbutils. In Glue, uses boto3.
-    For simplicity, we build paths from known season/round ranges.
-    Override this if you have a different layout.
+    Scans S3 objects under raw/jolpica/seasons/ and extracts unique
+    (season, round) tuples — same approach as OpenF1_Cleaner's
+    discover_session_paths().
     """
-    paths = []
+    paths, s3, seen = [], boto3.client("s3"), set()
+    paginator = s3.get_paginator("list_objects_v2")
 
-    if MODE == "databricks":
-        # On Databricks, try to list directories using dbutils
-        # Fallback: hardcode known seasons/rounds for testing
-        try:
-            # dbutils is available in Databricks notebooks
-            import builtins
-            dbutils = getattr(builtins, "dbutils", None)
-            if dbutils is None:
-                # Running as script — use fallback
-                raise AttributeError("dbutils not available")
-
-            season_dirs = dbutils.fs.ls(f"{RAW_BASE}/seasons/")
-            for sd in season_dirs:
-                season_name = sd.name.rstrip("/")
-                if not season_name.isdigit():
-                    continue
-                season = int(season_name)
-                round_dirs = dbutils.fs.ls(sd.path)
-                for rd in round_dirs:
-                    round_name = rd.name.rstrip("/")
-                    if not round_name.startswith("round_"):
-                        continue
-                    round_num = int(round_name.replace("round_", ""))
-                    paths.append({
-                        "season": season,
-                        "round": round_num,
-                        "path": rd.path.rstrip("/"),
-                    })
-        except Exception as e:
-            print(f"  ⚠ Could not list DBFS directories: {e}")
-            print("  → Using fallback: scanning seasons 2025 rounds 1–24")
-            for season in range(2025, 2027):
-                for round_num in range(1, 25):
-                    paths.append({
-                        "season": season,
-                        "round": round_num,
-                        "path": f"{RAW_BASE}/seasons/{season}/round_{round_num:02d}",
-                    })
-    else:
-        # Glue — scan S3 prefixes (handled by Spark glob)
-        for season in range(2025, 2027):
-            for round_num in range(1, 25):
+    for page in paginator.paginate(Bucket=MANIFEST_BUCKET, Prefix="raw/jolpica/seasons/"):
+        for obj in page.get("Contents", []):
+            # Key format: raw/jolpica/seasons/2025/round_01/results.json
+            parts = obj["Key"].split("/")
+            if len(parts) < 5:
+                continue
+            year_str, round_dir = parts[3], parts[4]
+            if not year_str.isdigit() or not round_dir.startswith("round_"):
+                continue
+            key = (year_str, round_dir)
+            if key not in seen:
+                seen.add(key)
+                round_num = int(round_dir.replace("round_", ""))
                 paths.append({
-                    "season": season,
-                    "round": round_num,
-                    "path": f"{RAW_BASE}/seasons/{season}/round_{round_num:02d}",
+                    "season": int(year_str),
+                    "round":  round_num,
+                    "path":   f"{RAW_BASE}/seasons/{year_str}/{round_dir}",
                 })
 
+    # Sort by season then round for deterministic processing order
+    paths.sort(key=lambda x: (x["season"], x["round"]))
     return paths
 
 
 def safe_read_json(path):
     """
-    Try reading a JSON file. Return None if it doesn't exist.
+    Try reading a JSON file. Return None if it doesn't exist or is empty.
     Jolpica JSON is the full Ergast wrapper — read as multiLine.
     """
     try:
@@ -167,6 +224,28 @@ def safe_read_json(path):
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  FLATTENERS — one per endpoint
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+#  Each flattener receives the raw Ergast DataFrame and the
+#  season/round context, then returns a flat, typed DataFrame
+#  ready for Parquet output.
+#
+#  Column names and types are chosen to be consistent with
+#  clean_kaggle.py outputs so dbt staging models can union them.
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+def _has_nested_field(schema, dotted_path):
+    """Check if a dotted path (e.g. 'FastestLap.AverageSpeed.speed') exists in a schema."""
+    fields = dotted_path.split(".")
+    current = schema
+    for field_name in fields:
+        if not hasattr(current, "fields"):
+            return False
+        match = [f for f in current.fields if f.name == field_name]
+        if not match:
+            return False
+        current = match[0].dataType
+    return True
+
 
 def flatten_results(df_raw, season, round_num):
     """
@@ -176,7 +255,8 @@ def flatten_results(df_raw, season, round_num):
       .Constructor.{constructorId}
       .grid, .position, .points, .laps, .status
       .Time.{millis, time}
-      .FastestLap.{rank, lap, Time.time, AverageSpeed.speed}
+      .FastestLap.{rank, lap, Time.time}
+      .FastestLap.AverageSpeed.speed  (MAY be absent in Jolpica)
     """
     try:
         races = df_raw.select(F.explode("MRData.RaceTable.Races").alias("race"))
@@ -187,7 +267,13 @@ def flatten_results(df_raw, season, round_num):
             F.explode("race.Results").alias("r"),
         )
 
-        flat = results.select(
+        # Check if AverageSpeed exists in the inferred schema for Results
+        r_schema = results.schema["r"].dataType
+        has_avg_speed = (
+            _has_nested_field(r_schema, "FastestLap.AverageSpeed.speed")
+        )
+
+        select_cols = [
             F.col("season").cast(IntegerType()),
             F.col("round").cast(IntegerType()),
             F.col("race_name"),
@@ -210,11 +296,22 @@ def flatten_results(df_raw, season, round_num):
             F.col("r.FastestLap.rank").cast(IntegerType()).alias("fastest_lap_rank"),
             F.col("r.FastestLap.lap").cast(IntegerType()).alias("fastest_lap_number"),
             parse_lap_time_ms(F.col("r.FastestLap.Time.time")).alias("fastest_lap_time_ms"),
-            F.col("r.FastestLap.AverageSpeed.speed").cast(DoubleType()).alias("fastest_lap_speed"),
-        )
+        ]
+
+        # AverageSpeed is present in original Ergast but may be absent in Jolpica
+        if has_avg_speed:
+            select_cols.append(
+                F.col("r.FastestLap.AverageSpeed.speed").cast(DoubleType()).alias("fastest_lap_speed")
+            )
+        else:
+            select_cols.append(
+                F.lit(None).cast(DoubleType()).alias("fastest_lap_speed")
+            )
+
+        flat = results.select(*select_cols).dropDuplicates()
         return flat
     except Exception as e:
-        print(f"    ⚠ Could not flatten results for {season}/{round_num}: {e}")
+        print(f"    ⚠ Could not flatten results for {season}/R{round_num:02d}: {e}")
         return None
 
 
@@ -247,10 +344,11 @@ def flatten_qualifying(df_raw, season, round_num):
             parse_lap_time_ms(F.col("q.Q1")).alias("q1_ms"),
             parse_lap_time_ms(F.col("q.Q2")).alias("q2_ms"),
             parse_lap_time_ms(F.col("q.Q3")).alias("q3_ms"),
-        )
+        ).dropDuplicates()
+
         return flat
     except Exception as e:
-        print(f"    ⚠ Could not flatten qualifying for {season}/{round_num}: {e}")
+        print(f"    ⚠ Could not flatten qualifying for {season}/R{round_num:02d}: {e}")
         return None
 
 
@@ -276,10 +374,11 @@ def flatten_pitstops(df_raw, season, round_num):
             F.col("p.time").alias("time"),
             F.col("p.duration").cast(DoubleType()).alias("duration_seconds"),
             (F.col("p.duration").cast(DoubleType()) * 1000).cast(LongType()).alias("duration_ms"),
-        )
+        ).dropDuplicates()
+
         return flat
     except Exception as e:
-        print(f"    ⚠ Could not flatten pitstops for {season}/{round_num}: {e}")
+        print(f"    ⚠ Could not flatten pitstops for {season}/R{round_num:02d}: {e}")
         return None
 
 
@@ -312,10 +411,11 @@ def flatten_driver_standings(df_raw, season, round_num):
             F.col("ds.positionText").alias("position_text"),
             F.col("ds.points").cast(DoubleType()).alias("points"),
             F.col("ds.wins").cast(IntegerType()).alias("wins"),
-        )
+        ).dropDuplicates()
+
         return flat
     except Exception as e:
-        print(f"    ⚠ Could not flatten driver_standings for {season}/{round_num}: {e}")
+        print(f"    ⚠ Could not flatten driver_standings for {season}/R{round_num:02d}: {e}")
         return None
 
 
@@ -345,17 +445,48 @@ def flatten_constructor_standings(df_raw, season, round_num):
             F.col("cs.positionText").alias("position_text"),
             F.col("cs.points").cast(DoubleType()).alias("points"),
             F.col("cs.wins").cast(IntegerType()).alias("wins"),
-        )
+        ).dropDuplicates()
+
         return flat
     except Exception as e:
-        print(f"    ⚠ Could not flatten constructor_standings for {season}/{round_num}: {e}")
+        print(f"    ⚠ Could not flatten constructor_standings for {season}/R{round_num:02d}: {e}")
         return None
 
 
 def flatten_sprint(df_raw, season, round_num):
-    """Same structure as results — sprint races use identical Ergast format."""
+    """
+    Same structure as results — sprint races use identical Ergast format
+    but under MRData.RaceTable.Races[].SprintResults[].
+
+    For non-sprint rounds, the JSON may have Races as a STRING (empty)
+    instead of an ARRAY. We check the schema type before exploding.
+    """
     try:
+        # Guard: check if Races is actually an array (sprint data exists)
+        # For non-sprint rounds, Spark infers Races as StringType
+        from pyspark.sql.types import ArrayType, StructType as ST
+
+        race_table_schema = df_raw.schema
+        # Navigate: MRData -> RaceTable -> Races
+        try:
+            mrdata_type = race_table_schema["MRData"].dataType
+            racetable_type = mrdata_type["RaceTable"].dataType
+            races_type = racetable_type["Races"].dataType
+        except (KeyError, AttributeError):
+            return None
+
+        if not isinstance(races_type, ArrayType):
+            # Races is a STRING (no sprint data) — skip silently
+            return None
+
         races = df_raw.select(F.explode("MRData.RaceTable.Races").alias("race"))
+
+        # Check if SprintResults field exists and is an array
+        race_struct = races_type.elementType
+        sprint_fields = [f for f in race_struct.fields if f.name == "SprintResults"]
+        if not sprint_fields or not isinstance(sprint_fields[0].dataType, ArrayType):
+            return None
+
         results = races.select(
             F.lit(season).alias("season"),
             F.lit(round_num).alias("round"),
@@ -378,78 +509,105 @@ def flatten_sprint(df_raw, season, round_num):
             F.col("r.status").alias("status"),
             F.col("r.Time.millis").cast(LongType()).alias("time_millis"),
             F.col("r.Time.time").alias("time_text"),
-        )
+        ).dropDuplicates()
+
         return flat
     except Exception as e:
-        print(f"    ⚠ Could not flatten sprint for {season}/{round_num}: {e}")
+        print(f"    ⚠ Could not flatten sprint for {season}/R{round_num:02d}: {e}")
         return None
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#  MAIN PIPELINE
+#  ENDPOINT CONFIG & MAIN PIPELINE
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-# Endpoint → (flatten function, Ergast JSON filename)
+# Endpoint → (flatten function, JSON filename in S3)
 ENDPOINT_CONFIG = {
     "results":                 (flatten_results,                "results.json"),
     "qualifying":              (flatten_qualifying,             "qualifying.json"),
     "pitstops":                (flatten_pitstops,               "pitstops.json"),
-    "driver_standings":        (flatten_driver_standings,        "driver_standings.json"),
-    "constructor_standings":   (flatten_constructor_standings,   "constructor_standings.json"),
-    "sprint":                  (flatten_sprint,                  "sprint.json"),
+    "driver_standings":        (flatten_driver_standings,       "driver_standings.json"),
+    "constructor_standings":   (flatten_constructor_standings,  "constructor_standings.json"),
+    "sprint":                  (flatten_sprint,                 "sprint.json"),
 }
 
 
-def main():
-    print("=" * 60)
-    print("clean_jolpica.py — Starting")
-    print(f"  MODE:      {MODE}")
-    print(f"  RAW:       {RAW_BASE}")
-    print(f"  PROCESSED: {PROCESSED_BASE}")
-    print("=" * 60)
+print("=" * 60)
+print("clean_jolpica.py — Starting")
+print("=" * 60)
 
-    round_paths = discover_round_paths()
-    print(f"  Found {len(round_paths)} possible round paths to scan\n")
+# 1. Discover all season/round paths in S3
+round_paths = discover_round_paths()
+print(f"  Found {len(round_paths)} round paths to scan\n")
 
-    # Accumulators: endpoint → list of DataFrames
-    accumulators = {name: [] for name in ENDPOINT_CONFIG}
+# 2. Build all expected raw S3 keys
+#    Format: raw/jolpica/seasons/{year}/round_{NN}/{filename}
+ALL_RAW_PATHS = []
+for rp in round_paths:
+    for _, (_, filename) in ENDPOINT_CONFIG.items():
+        ALL_RAW_PATHS.append(
+            f"raw/jolpica/seasons/{rp['season']}/round_{rp['round']:02d}/{filename}"
+        )
 
-    for rp in round_paths:
-        season    = rp["season"]
-        round_num = rp["round"]
-        base_path = rp["path"]
+# 3. Check manifest — only process new files
+unprocessed, manifest = get_unprocessed("jolpica", ALL_RAW_PATHS)
 
-        for endpoint_name, (flatten_fn, filename) in ENDPOINT_CONFIG.items():
-            json_path = f"{base_path}/{filename}"
-            df_raw = safe_read_json(json_path)
-            if df_raw is None:
-                continue
+if not unprocessed:
+    print("All files already processed — nothing to do.")
+else:
+    # 4. Process each unprocessed file
+    for raw_path in unprocessed:
+        # Parse path components:
+        #   raw/jolpica/seasons/2025/round_01/results.json
+        #   [0]  [1]     [2]    [3]   [4]      [5]
+        parts = raw_path.split("/")
+        season    = int(parts[3])
+        round_dir = parts[4]
+        round_num = int(round_dir.replace("round_", ""))
+        filename  = parts[5]
 
-            df_flat = flatten_fn(df_raw, season, round_num)
-            if df_flat is not None and df_flat.head(1):
-                accumulators[endpoint_name].append(df_flat)
-                print(f"  ✓ {season}/R{round_num:02d}/{endpoint_name}")
+        # Look up the matching flatten function
+        flatten_fn   = None
+        endpoint_name = None
+        for ep_name, (fn, fn_name) in ENDPOINT_CONFIG.items():
+            if fn_name == filename:
+                flatten_fn    = fn
+                endpoint_name = ep_name
+                break
 
-    # Write accumulated results
-    print("\n" + "─" * 60)
-    print("Writing Parquet output\n")
-
-    for endpoint_name, dfs in accumulators.items():
-        if not dfs:
-            print(f"  ⊘ {endpoint_name} — no data found, skipping")
+        if flatten_fn is None:
+            print(f"  ⚠ Unknown file {filename} — skipping")
             continue
 
-        combined = dfs[0]
-        for df in dfs[1:]:
-            combined = combined.unionByName(df, allowMissingColumns=True)
+        # Read the raw JSON
+        json_path = f"{RAW_BASE}/seasons/{season}/{round_dir}/{filename}"
+        df_raw = safe_read_json(json_path)
 
-        combined = combined.dropDuplicates()
-        write_parquet(combined, endpoint_name, partition_cols=["season"])
+        if df_raw is None:
+            # Don't mark as done — retry on next run
+            # (file may not exist yet if ingestion hasn't finished)
+            continue
+
+        # Flatten + type cast
+        df_clean = flatten_fn(df_raw, season, round_num)
+
+        if df_clean is None or df_clean.rdd.isEmpty():
+            continue
+
+        # Write with append mode — many JSON files contribute to one
+        # endpoint table (one per season/round), just like OpenF1.
+        # Partitioned by season for cost-efficient downstream queries.
+        path = f"{PROCESSED_BASE}/{endpoint_name}"
+        df_clean.write.mode("append").partitionBy("season").parquet(path)
+        print(f"  ✓ {raw_path}")
+
+        # Crash-safe: mark done and persist manifest after each file
+        mark_file_done(raw_path, manifest)
+        save_manifest("jolpica", manifest)
 
     print("\n" + "=" * 60)
     print("clean_jolpica.py — Complete ✓")
     print("=" * 60)
 
-
-if __name__ == "__main__":
-    main()
+# Commit the Glue job so AWS marks it as Succeeded
+job.commit()

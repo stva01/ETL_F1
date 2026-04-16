@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The PySpark F1 Data Engineering Masterclass</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --text-color: #c9d1d9;
+            --heading-color: #58a6ff;
+            --code-bg: #161b22;
+            --accent-red: #f85149;
+            --accent-green: #3fb950;
+            --accent-yellow: #d29922;
+            --box-bg: #21262d;
+        }
+
+        body {
+            font-family: 'Literata', 'Georgia', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.8;
+            color: var(--text-color);
+            background-color: var(--bg-color);
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4 {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        h1,
+        h2,
+        h3 {
+            color: var(--heading-color);
+            border-bottom: 1px solid #30363d;
+            padding-bottom: 10px;
+            margin-top: 3em;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            border-bottom: 2px solid var(--accent-red);
+            text-align: center;
+        }
+
+        h2 {
+            font-size: 1.8em;
+        }
+
+        h3 {
+            font-size: 1.3em;
+            color: var(--accent-yellow);
+            border: none;
+            margin-top: 2.5em;
+        }
+
+        h4 {
+            color: var(--heading-color);
+            margin-bottom: 0.5em;
+        }
+
+        p {
+            margin-bottom: 1.5em;
+            font-size: 1.1em;
+        }
+
+        a {
+            color: var(--heading-color);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        code {
+            font-family: 'Fira Code', 'Consolas', monospace;
+            background-color: var(--code-bg);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            color: #ff7b72;
+        }
+
+        pre {
+            background-color: var(--code-bg);
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            border: 1px solid #30363d;
+            margin: 2em 0;
+        }
+
+        pre code {
+            background-color: transparent;
+            padding: 0;
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        .concept-box {
+            background-color: var(--box-bg);
+            border-left: 5px solid var(--heading-color);
+            padding: 25px;
+            margin: 2.5em 0;
+            border-radius: 0 8px 8px 0;
+            font-size: 1.05em;
+        }
+
+        .analogy-box {
+            background-color: #1c2128;
+            border: 1px solid var(--accent-yellow);
+            padding: 20px 25px;
+            margin: 2.5em 0;
+            border-radius: 8px;
+            font-style: italic;
+            color: #e6edf3;
+        }
+
+        .analogy-box::before {
+            content: "💡 Analogy: ";
+            color: var(--accent-yellow);
+            font-weight: bold;
+            font-style: normal;
+        }
+
+        .interview-question {
+            background-color: #1c2128;
+            border: 1px dashed var(--accent-green);
+            padding: 20px 25px;
+            margin: 2.5em 0;
+            border-radius: 8px;
+        }
+
+        .interview-question strong {
+            color: var(--accent-green);
+            display: block;
+            margin-bottom: 8px;
+            font-size: 1.1em;
+        }
+
+        .mermaid {
+            background: white;
+            border-radius: 8px;
+            padding: 25px;
+            margin: 2.5em 0;
+            text-align: center;
+        }
+
+        .warning {
+            color: var(--accent-red);
+            font-weight: bold;
+        }
+
+        .success {
+            color: var(--accent-green);
+            font-weight: bold;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2em 0;
+            background-color: var(--box-bg);
+            font-size: 0.95em;
+        }
+
+        th,
+        td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #30363d;
+            vertical-align: top;
+        }
+
+        th {
+            color: var(--accent-yellow);
+            border-bottom: 2px solid var(--accent-yellow);
+        }
+
+        blockquote {
+            border-left: 3px solid #484f58;
+            padding-left: 20px;
+            color: #8b949e;
+            margin: 2em 0;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>🏎️ The PySpark F1 Masterclass</h1>
+    <p style="text-align: center; font-size: 1.2em; color: #8b949e; margin-top: -10px;">From raw JSON to the Warehouse:
+        A visual, in-depth guide to distributed data engineering.</p>
+
+    ---
+
+    <h2>Prologue: The Philosophy of Distributed Compute</h2>
+    <p>Before writing a single line of code, you must fundamentally change how you think about data. When you write
+        Python with Pandas, you are a chef in a kitchen: you pick up a carrot, you chop it, you put it in a pot. The
+        data is small enough to fit in your hands (your computer's RAM).</p>
+    <p>When you write PySpark, you are the <strong>head chef of a massive factory</strong>. You cannot touch the
+        carrots. There are millions of them, spread across 50 different conveyor belts (Executors). You can only write
+        instructions on a whiteboard (Transformations), and at the very end, ring a bell to start the factory (Actions).
+    </p>
+
+    <div class="concept-box">
+        <h4>⚡ Lazy Evaluation & The DAG</h4>
+        <p>When you write transformations in PySpark (<code>filter</code>, <code>join</code>, <code>withColumn</code>),
+            Spark <strong>does absolutely nothing</strong>. It doesn't read the data from S3. It doesn't load it into
+            memory. It simply draws a logical map of what it <em>wants</em> to do. This map is called a <strong>DAG
+                (Directed Acyclic Graph)</strong>.</p>
+        <p>Spark only actually goes to S3, reads the data, and executes the math when you call an
+            <strong>Action</strong> (like <code>.count()</code>, <code>.show()</code>, <code>.write()</code>, or
+            <code>.isEmpty()</code>).
+        </p>
+        <p><strong>Why does it do this?</strong> Because Spark's brain (the Catalyst Optimizer) looks at your entire DAG
+            and rewrites it to be more efficient before a single byte of data is processed. If you filter for "year ==
+            2024" and then select "driver_name", Catalyst is smart enough to realize it only needs to read the "year"
+            and "driver_name" columns from S3, completely ignoring the "lap_times" column. If you did this line-by-line
+            in Pandas, it would read everything.</p>
+    </div>
+
+    <div class="mermaid">
+        graph TD
+        A["Code: df.filter(year=2024).select(driver)"] -->|Transformations| B(DAG Execution Plan)
+        B --> C{Catalyst Optimizer reviews plan}
+        C -->|"Pushes 'filter' down"| D(Optimized Plan:<br />Only read 'year' & 'driver' columns)
+        D -->|Triggered by .count()| E((Actual Data Execution))
+        style A fill:#ff7b72,stroke:#f85149,color:#000
+        style E fill:#3fb950,stroke:#238636,color:#000
+    </div>
+
+    <p><em>Deep Dive:</em> <a href="https://spark.apache.org/docs/latest/sql-ref-guide.html" target="_blank">Read the
+            Apache Spark SQL Guide on how the Catalyst Optimizer parses your code.</a> Understanding Catalyst is what
+        separates junior data engineers from senior ones.</p>
+
+    <div class="interview-question">
+        <strong>❓ Interview Question: What is the difference between a Transformation and an Action?</strong>
+        Transformations are lazy (e.g., <code>select</code>, <code>filter</code>, <code>join</code>); they return a new
+        DataFrame and build the DAG. Actions are eager (e.g., <code>count</code>, <code>write</code>,
+        <code>collect</code>); they trigger the execution of the DAG and return a result to the driver.
+    </div>
+
+    ---
+
+    <h2>Module 1: The Engine Architecture (Driver vs. Executor)</h2>
+    <p>When you run code in AWS Glue, you aren't running it on your laptop. You are renting a cluster of machines.
+        Understanding how they talk to each other is critical to writing code that doesn't crash.</p>
+
+    <div class="mermaid">
+        graph LR
+        subgraph Your Glue Job
+        D[Driver Program<br />The Brain]
+        end
+        subgraph AWS Cluster
+        E1[Executor 1<br />The Muscle]
+        E2[Executor 2<br />The Muscle]
+        E3[Executor 3<br />The Muscle]
+        end
+        D -- "Sends Tasks & Plan" --> E1
+        D -- "Sends Tasks & Plan" --> E2
+        D -- "Sends Tasks & Plan" --> E3
+        E1 -- "Returns Results" --> D
+        E2 -- "Returns Results" --> D
+        E3 -- "Returns Results" --> D
+        style D fill:#d29922,stroke:#000,color:#000
+        style E1 fill:#58a6ff,stroke:#000,color:#000
+        style E2 fill:#58a6ff,stroke:#000,color:#000
+        style E3 fill:#58a6ff,stroke:#000,color:#000
+    </div>
+
+    <p>The <strong>Driver</strong> holds the <code>SparkContext</code> and <code>SparkSession</code>. It is the
+        orchestrator. It figures out the execution plan, splits the work into "tasks", and hands them out. The
+        <strong>Executors</strong> are the workers. They hold chunks of your data (called <strong>Partitions</strong>)
+        in their RAM, perform the actual filtering/math, and send the final computed results back to the Driver.
+    </p>
+
+    <div class="analogy-box">
+        The Driver is the architect holding the blueprint. The Executors are the construction workers holding the
+        bricks. If the architect tries to hold all the bricks in their office (by calling <code>.collect()</code> on a
+        massive dataset), the architect's office will collapse (Out of Memory error).
+    </div>
+
+    <p>In our Glue setup code, we initialize this connection:</p>
+    <pre><code># This code simply connects your "Brain" to AWS's "Muscle"
+sc          = SparkContext.getOrCreate()
+glueContext = GlueContext(sc)
+spark       = glueContext.spark_session # Your steering wheel
+
+# The try/except is purely an AWS Glue Studio notebook quirk.
+# When you click "Run" interactively, AWS doesn't pass --JOB_NAME.
+# When scheduled as a job, it does. This handles both gracefully.
+job = Job(glueContext)
+try:
+    args = getResolvedOptions(sys.argv, ["JOB_NAME"])
+    job.init(args["JOB_NAME"], args)
+except Exception:
+    job.init("interactive-notebook", {})</code></pre>
+
+    <div class="interview-question">
+        <strong>❓ Interview Question: What is a partition in Spark, and why does it matter?</strong>
+        A partition is a logical chunk of a dataset. If you read a 10GB file with 5 executors, Spark splits it into 5
+        partitions (2GB each). Each executor works on 1 partition independently. If you have 10,000 tiny files, Spark
+        might create 10,000 partitions, which causes massive overhead managing tasks. (This leads directly into Module
+        2).
+    </div>
+
+    ---
+
+    <h2>Module 2: I/O, Formats, and The Small File Problem</h2>
+    <p>Data engineering at its core is moving data from a "Read-Optimized" format to a "Query-Optimized" format. APIs
+        give you JSON. Data warehouses need Parquet.</p>
+
+    <h3>JSON vs. Parquet: A Tale of Two Layouts</h3>
+    <p>JSON is <strong>row-based</strong>. All data for Max Verstappen (name, lap time, speed) is stored together in one
+        big block of text. Parquet is <strong>columnar</strong>. It stores all the names together, then all the lap
+        times together, then all the speeds together.</p>
+
+    <div class="mermaid">
+        graph TD
+        subgraph "Row-Based (JSON) - Read Everything"
+        R1["{'driver': 'Max', 'time': '82.1', 'speed': '310'}"]
+        R2["{'driver': 'Lewis', 'time': '83.2', 'speed': '305'}"]
+        end
+        subgraph "Columnar (Parquet) - Read Only What You Need"
+        C1["Driver Block: [Max, Lewis]"]
+        C2["Time Block: [82.1, 83.2]"]
+        C3["Speed Block: [310, 305]"]
+        end
+        R1 -.-> C1
+        R2 -.-> C1
+        R1 -.-> C2
+        R2 -.-> C2
+        R1 -.-> C3
+        R2 -.-> C3
+        style R1 fill:#f85149,stroke:#000,color:#000
+        style R2 fill:#f85149,stroke:#000,color:#000
+        style C1 fill:#3fb950,stroke:#000,color:#000
+        style C2 fill:#3fb950,stroke:#000,color:#000
+        style C3 fill:#3fb950,stroke:#000,color:#000
+    </div>
+
+    <p>If dbt asks Athena to run <code>SELECT driver FROM table</code>, using JSON forces S3 to scan the entire file to
+        find the driver names. Using Parquet allows S3 to literally skip the "Time" and "Speed" blocks entirely. This is
+        called <strong>Column Pruning</strong>, and it makes Parquet incredibly fast and cheap to query.</p>
+    <p><em>Deep Dive:</em> <a href="https://www.databricks.com/glossary/what-is-parquet" target="_blank">Databricks
+            excellent breakdown of Parquet internal architecture.</a></p>
+
+    <h3>The Multi-Line JSON Trap (Jolpica Specific)</h3>
+    <p>Standard Spark assumes a JSON file is "JSON Lines" format—one distinct object per line. But the Ergast/Jolpica
+        API returns a single, massive, beautifully formatted JSON object that spans hundreds of lines. </p>
+    <p>If you read this with standard <code>spark.read.json()</code>, Spark will try to parse the first line
+        (<code>{"MRData":</code>), fail because it's incomplete, and either crash or return garbage data.</p>
+    <pre><code># The magic switch for Jolpica/Ergast data
+# WARNING: This forces Spark to read the ENTIRE file into a SINGLE partition.
+# This is okay for Jolpica (files are small), but would crash a 50GB file.
+df_jolpica = spark.read.json("s3://.../results.json", multiLine=True)</code></pre>
+
+    <h3>🔥 The Small File Problem (Crucial Architecture Concept)</h3>
+    <p>This is the most common mistake junior engineers make in the cloud. They write a loop that processes data one
+        race at a time, appending to S3:</p>
+    <pre><code># BAD PATTERN (What we initially did)
+for race in races:
+    df.write.mode("append").parquet("s3://bucket/results/")</code></pre>
+    <p>This results in an S3 bucket with 20,000 files, each 5KB in size.</p>
+    <div class="analogy-box">
+        Imagine S3 is a library. Asking the librarian to fetch 1 book of 500 pages is fast. Asking the librarian to
+        fetch 5,000 post-it notes scattered across 5,000 different shelves will take hours, even though it's the exact
+        same amount of text.
+    </div>
+    <p>Technically, when Athena runs a query, it calls the S3 <code>ListObjects</code> API to find the files. S3 limits
+        this to 1,000 requests per second. If you have 100,000 files, just listing them takes 100 seconds—before Athena
+        has read a single byte of data.</p>
+
+    <pre><code># THE FIX: .coalesce(1)
+# This forces the Executors to hand all their data back to the Driver, 
+# which squishes it into exactly ONE file per partition before writing.
+df_clean.coalesce(1).write.mode("overwrite").partitionBy("year").parquet(path)</code></pre>
+    <p><em>Deep Dive:</em> <a href="https://www.databricks.com/glossary/small-file-problem" target="_blank">Databricks
+            guide to the Small File Problem.</a></p>
+
+    <div class="interview-question">
+        <strong>❓ Interview Question: What is the difference between coalesce() and repartition()?</strong>
+        Both reduce partitions, but their mechanics are entirely different. <code>repartition()</code> forces a full
+        network shuffle to ensure data is perfectly balanced across nodes. <code>coalesce()</code> just merges existing
+        partitions locally on the same node without moving data over the network. For fixing the small file problem at
+        write time, always use <code>coalesce(1)</code> because it's instantaneous. Use
+        <code>repartition("column")</code> when you need to fix data skew *before* a heavy join.
+    </div>
+
+    ---
+
+    <h2>Module 3: DataFrame Transformations & Immutability</h2>
+    <p>In Pandas, you can do <code>df['col'] = 5</code> and mutate the dataframe in place. In PySpark,
+        <strong>DataFrames are strictly immutable</strong>. When you call <code>withColumn</code>, Spark doesn't change
+        the original DataFrame; it creates a brand new DataFrame that points back to the original data plus your new
+        instruction in the DAG.
+    </p>
+
+    <div class="analogy-box">
+        Immutability is required for distributed fault tolerance. If an Executor dies while processing data, Spark
+        cannot "roll back" a changed file. Instead, it just spins up a new Executor and reruns the exact same immutable
+        transformation steps from the original source data.
+    </div>
+
+    <h3>Type Casting: Schema-on-Read vs Schema-on-Write</h3>
+    <p>Databases like Postgres enforce a schema before you insert data (Schema-on-Write). Spark/Parquet do not. You can
+        write whatever you want. But if you write "44" as a string, and later try to <code>SUM()</code> it in dbt, it
+        will fail. You <strong>must</strong> explicitly cast types during your cleaning phase.</p>
+    <pre><code>from pyspark.sql.types import IntegerType, DoubleType, LongType
+
+# LongType is for massive numbers (milliseconds since epoch)
+# IntegerType maxes out at ~2.1 billion. LongType goes to 9 quintillion.
+df = df.withColumn("driver_number", F.col("driver_number").cast(IntegerType()))
+df = df.withColumn("time_millis", F.col("time_millis").cast(LongType()))</code></pre>
+
+    <h3>Literals & Math</h3>
+    <pre><code># F.lit() injects a hardcoded value into every row.
+# Why not just write "kaggle"? Because Spark needs it wrapped as a Column object for the JVM.
+df = df.withColumn("source", F.lit("kaggle"))
+
+# Math operations to convert OpenF1 seconds to milliseconds
+df.withColumn("pit_duration_ms", 
+    (F.col("pit_duration").cast(DoubleType()) * 1000).cast(LongType())
+)</code></pre>
+
+    <h3>Deduplication</h3>
+    <pre><code># Drop rows that are 100% identical across ALL columns
+df.dropDuplicates()
+
+# Drop rows that have the same driver_id, keeping the first one it finds
+df.dropDuplicates(["driver_id"])</code></pre>
+
+    ---
+
+    <h2>Module 4: Taming Nested JSON (The Jolpica Magic)</h2>
+    <p>This is advanced PySpark. Most tutorials stop at flat CSVs. Jolpica data from the Ergast API looks like Russian
+        nesting dolls: <code>MRData -> RaceTable -> Races[] -> Results[] -> Driver</code>.</p>
+    <p>When Spark reads this with <code>multiLine=True</code>, it infers a complex schema of <strong>Structs</strong>
+        (dictionaries) and <strong>Arrays</strong> (lists).</p>
+
+    <div class="mermaid">
+        graph TD
+        A["Root: MRData (Struct)"] --> B["RaceTable (Struct)"]
+        B --> C["Races (Array of Structs)"]
+        C --> D["Race 1 (Struct)"]
+        C --> E["Race 2 (Struct)"]
+        D --> F["Results (Array of Structs)"]
+        F --> G["Driver 1 Result (Struct)"]
+        F --> H["Driver 2 Result (Struct)"]
+        G --> I["Driver Object (Struct): {name, code}"]
+        style C fill:#d29922,stroke:#000,color:#000
+        style F fill:#f85149,stroke:#000,color:#000
+        style I fill:#58a6ff,stroke:#000,color:#000
+    </div>
+
+    <h3>Step 1: Exploding Arrays Vertically</h3>
+    <p><code>F.explode()</code> is the magic key. It takes an array column and creates a new row for every item inside
+        it. It "flattens" the array vertically.</p>
+    <pre><code># Races is an Array of Structs. Explode makes every race its own row.
+races = df_raw.select(F.explode("MRData.RaceTable.Races").alias("race"))
+
+# Now 'race' is a Struct. But inside 'race' is ANOTHER array (Results). 
+# We must chain another explode!
+results = races.select(
+    F.lit(2024).alias("season"), # We add context because explosion loses it
+    F.explode("race.Results").alias("r")
+)
+# Now 'r' represents ONE single driver's result for ONE single race.</code></pre>
+
+    <h3>Step 2: Digging into Structs with Dot Notation</h3>
+    <p>Once exploded, the data is a flat table of Structs. You use dot notation to drill down.</p>
+    <pre><code>flat = results.select(
+    F.col("r.Driver.driverId").alias("driver_id"),
+    F.col("r.Constructor.name").alias("team_name")
+)</code></pre>
+
+    <h3>Step 3: Array Indexing (The Tricky Part)</h3>
+    <p>What if a struct contains an array? E.g., a driver drove for two teams in one year (like Pierre Gasly in 2023),
+        so <code>Constructors</code> is an Array of Structs. We use brackets <code>[0]</code> to grab the first one,
+        treating the data like a Python dictionary.</p>
+    <pre><code># Grab index 0 of the Constructors array, then grab its 'constructorId' key
+F.col("r.Constructors")[0]["constructorId"].alias("constructor_id")</code></pre>
+
+    ---
+
+    <h2>Module 5: Joins & Unions (Combining the Silos)</h2>
+    <p>We have three completely different datasets. Kaggle uses integer IDs (<code>driverId = 1</code>). Jolpica uses
+        strings (<code>driver_id = "hamilton"</code>). OpenF1 uses car numbers (<code>driver_number = 44</code>). To
+        build a warehouse, we must stitch these together.</p>
+
+    <div class="mermaid">
+        graph LR
+        subgraph "JOIN (Side by Side)"
+        K["Kaggle Table<br />[driverId, time]"]
+        L["Lookup Table<br />[driverId, driverRef]"]
+        J["Joined Table<br />[driverId, time, driverRef]"]
+        K --- J
+        L --- J
+        end
+        subgraph "UNION (Stacked)"
+        K2["Kaggle Rows<br />year
+        <= 2024"] J2["Jolpica Rows<br />year > 2024"]
+        U["Combined Table<br />[year, time, driverRef]"]
+        K2 --> U
+        J2 --> U
+        end
+        style J fill:#3fb950,stroke:#000,color:#000
+        style U fill:#3fb950,stroke:#000,color:#000
+    </div>
+
+    <h3>The Entity Resolution Join</h3>
+    <p>In our <code>bridge_sources.py</code>, we used the Kaggle drivers table as a "bridge" to translate IDs.</p>
+    <pre><code># We need to translate Kaggle's integer 'driverId' into Jolpica's string 'driver_ref'
+lookup = driver_lookup.select("kaggle_driver_id", "driver_ref")
+
+# Why 'left' join? Because if a driver is missing from the lookup, 
+# we still want to KEEP the Kaggle result, just with a null driver_ref.
+joined_df = kaggle_results.join(
+    lookup,
+    on=(kaggle_results["driverId"] == lookup["kaggle_driver_id"]),
+    how="left"
+).drop("kaggle_driver_id") # Drop the key so it doesn't duplicate in the output table</code></pre>
+
+    <h3>The Union (Stacking History and Present)</h3>
+    <p>Unions stack rows on top of each other. But they are incredibly strict. Column names and data types must match
+        exactly.</p>
+    <pre><code># unionByName is safer than union() because it matches by column name, not position.
+# allowMissingColumns=True is a lifesaver: if Kaggle has 'status_id' but Jolpica 
+# doesn't, Jolpica rows just get NULL for that column instead of throwing an error.
+combined = kaggle_norm.unionByName(jolpica_norm, allowMissingColumns=True)</code></pre>
+
+    <div class="interview-question">
+        <strong>❓ Interview Question: What happens during a Spark Shuffle?</strong>
+        When you <code>join</code> or <code>groupBy</code>, data with the same key must end up on the same Executor.
+        Spark has to physically move data across the network between executors. This network I/O is called a Shuffle,
+        and it is the #1 cause of slow Spark jobs. Never join on highly ununique columns (like
+        <code>join on status</code> where 90% of rows say "Finished").
+    </div>
+
+    ---
+
+    <h2>Module 6: Window Functions</h2>
+    <p>Window functions are the "boss level" of SQL and Spark. They allow you to run <code>GROUP BY</code> logic
+        <strong>without collapsing the rows</strong>.
+    </p>
+
+    <div class="concept-box">
+        <h4>The Scenario</h4>
+        We stacked Kaggle 2024 data and Jolpica 2025 data using a Union. But what if the ingestion script accidentally
+        scraped 2024 from Jolpica too? Now we have two rows for Max Verstappen in 2024 Race 1. We need to group by
+        (Year, Round, Driver), rank the sources (Jolpica=1, Kaggle=2), and keep only rank 1.
+        <br><br>
+        If we used a normal <code>GROUP BY</code>, we would lose all the individual race data! Window functions solve
+        this.
+    </div>
+
+    <div class="mermaid">
+        graph TD
+        A["Row 1: Max, 2024, Kaggle"] --> W[Window Group]
+        B["Row 2: Max, 2024, Jolpica"] --> W
+        C["Row 3: Lewis, 2024, Kaggle"] --> W2[Window Group]
+        W -->|row_number assigns Rank 2| D((Drop))
+        W -->|row_number assigns Rank 1| E((Keep))
+        W2 -->|row_number assigns Rank 1| F((Keep))
+        style D fill:#f85149,stroke:#000,color:#000
+        style E fill:#3fb950,stroke:#000,color:#000
+        style F fill:#3fb950,stroke:#000,color:#000
+    </div>
+
+    <pre><code>from pyspark.sql.window import Window
+
+# 1. Define the window: "Group by these 3 columns, and sort them by this logic"
+dedup_window = Window.partitionBy("year", "round", "driver_ref") \
+                   .orderBy(
+                       F.when(F.col("source") == "jolpica", 1)
+                        .when(F.col("source") == "kaggle", 2)
+                   )
+
+# 2. Apply row_number() over that window. This adds a new column '_rank'
+combined = combined.withColumn("_rank", F.row_number().over(dedup_window))
+
+# 3. Filter to keep only the winners of the rank
+combined = combined.filter(F.col("_rank") == 1).drop("_rank")</code></pre>
+    <p><em>Deep Dive:</em> <a href="https://www.databricks.com/glossary/window-function" target="_blank">Databricks
+            Window Function overview.</a></p>
+
+    <div class="interview-question">
+        <strong>❓ Interview Question: What is the difference between row_number(), rank(), and dense_rank()?</strong>
+        If three people tie for 1st place: <code>row_number()</code> assigns 1, 2, 3 randomly. <code>rank()</code>
+        assigns 1, 1, 1, then skips to 4. <code>dense_rank()</code> assigns 1, 1, 1, then goes to 2. For deduplication,
+        <strong>always use row_number()</strong> because it guarantees no ties, meaning your filter (<code>== 1</code>)
+        will strictly return exactly one row per group.
+    </div>
+
+    ---
+
+    <h2>Module 7: UDFs (User Defined Functions)</h2>
+    <div class="concept-box">
+        <h4>⚠️ The Golden Rule of Spark</h4>
+        <p>Spark is written in Scala/Java and runs on the JVM (Java Virtual Machine). When you use built-in functions
+            like <code>F.upper()</code> or <code>F.cast()</code>, you are using ultra-fast, optimized Scala code. </p>
+        <p>When you write a Python <code>def</code>, Spark has to serialize the data from the JVM, send it out to a
+            separate Python process, run your code, and serialize it back to the JVM. <span class="warning">This
+                serialization bounce destroys performance.</span></p>
+        <p><strong>Only use UDFs if Spark's built-in functions physically cannot do the job.</strong></p>
+    </div>
+
+    <p>We had to use a UDF in <code>clean_jolpica.py</code> to parse <code>"1:27.452"</code> into milliseconds because
+        PySpark has no built-in "convert F1 lap time string to integer" function.</p>
+
+    <div class="mermaid">
+        sequenceDiagram
+        participant Executor as Scala Executor (Fast)
+        participant Python as Python Worker (Slow)
+        Executor->>Python: Serialize & Send Row 1 ("1:27.452")
+        Python->>Python: Python splits strings, does math
+        Python->>Executor: Serialize & Send back 87452
+        Executor->>Python: Serialize & Send Row 2 ("1:21.000")
+        Note over Executor,Python: Doing this for 10 million rows = Massive Bottleneck
+    </div>
+
+    <pre><code># @F.udf tells Spark: "Treat this Python function as a Spark Column operation"
+# LongType() tells Spark what data type the function will return
+@F.udf(LongType())
+def parse_lap_time_ms(time_str):
+    if time_str is None: return None
+    try:
+        if ":" in time_str:
+            parts = time_str.split(":")
+            minutes = int(parts[0])
+            sec_parts = parts[1].split(".")
+            seconds = int(sec_parts[0])
+            millis = int(sec_parts[1]) if len(sec_parts) > 1 else 0
+            return minutes * 60_000 + seconds * 1_000 + millis
+    except Exception:
+        return None
+
+# Usage: Pass the COLUMN, not the value. Spark handles the row-by-row iteration.
+df = df.withColumn("lap_time_ms", parse_lap_time_ms(F.col("time_text")))</code></pre>
+
+    ---
+
+    <h2>Module 8: Execution Traps (The "Gotchas")</h2>
+    <p>Because of Lazy Evaluation, seemingly simple Python operations behave bizarrely in Spark.</p>
+
+    <h3>The Empty Data Trap</h3>
+    <p>How do you check if a DataFrame has data?</p>
+    <ul>
+        <li><code>df.count() == 0</code>: <span class="warning">TERRIBLE.</span> This triggers a full distributed scan
+            of the entire dataset across all executors, just to count to 0. If you have 100 million rows, this takes
+            minutes.</li>
+        <li><code>not df.head(1)</code>: <span class="warning">BUG.</span> In Python, <code>head(1)</code> returns a
+            list like <code>[Row(...)]</code>. In Python, a list with items inside it is "Truthy" (evaluates to True).
+            So <code>not [Row(...)]</code> evaluates to False. <strong>This if-statement will NEVER trigger, even if the
+                dataframe is empty!</strong></li>
+        <li><code>df.rdd.isEmpty()</code>: <span class="success">PERFECT.</span> This asks the executors to scan data,
+            but the exact microsecond they find *one* row, they stop and return False. If the file is empty, it returns
+            True instantly.</li>
+    </ul>
+
+    <pre><code># The correct, safe way to check for empty data
+df_raw = spark.read.json(path)
+if df_raw.rdd.isEmpty():
+    return None</code></pre>
+
+    <hr>
+
+    <h1>📋 The Ultimate PySpark Interview Cheatsheet</h1>
+    <p>Memorize these patterns. If you can explain these concepts in an interview, you pass the PySpark portion of any
+        Data Engineer interview.</p>
+
+    <table>
+        <tr>
+            <th width="20%">Concept</th>
+            <th width="35%">Code Pattern</th>
+            <th width="45%">Interview Answer</th>
+        </tr>
+        <tr>
+            <td><strong>Lazy Eval</strong></td>
+            <td><code>df.filter().select()</code></td>
+            <td>Transformations build a DAG; Actions trigger execution via the Catalyst Optimizer, allowing predicate
+                pushdown.</td>
+        </tr>
+        <tr>
+            <td><strong>Immutable DF</strong></td>
+            <td><code>df.withColumn(...)</code></td>
+            <td>DataFrames cannot be changed in place. <code>withColumn</code> returns a new DF pointing to the original
+                data plus the new transformation step.</td>
+        </tr>
+        <tr>
+            <td><strong>Small Files</strong></td>
+            <td><code>df.coalesce(1).write...</code></td>
+            <td>Combines partitions locally to reduce S3 <code>ListObjects</code> API overhead. Use
+                <code>repartition()</code> if you need a full network shuffle to balance data.
+            </td>
+        </tr>
+        <tr>
+            <td><strong>Parquet</strong></td>
+            <td><code>.partitionBy("year")</code></td>
+            <td>Columnar format enabling column pruning. Partitioning creates S3 folders (e.g., <code>year=2024/</code>)
+                to enable partition pruning.</td>
+        </tr>
+        <tr>
+            <td><strong>Nested JSON</strong></td>
+            <td><code>F.explode("array").alias("x")</code></td>
+            <td>Converts array elements into rows. Use dot notation <code>x.field</code> to access struct children.
+                Requires <code>multiLine=True</code> for JSON wrappers.</td>
+        </tr>
+        <tr>
+            <td><strong>Joins</strong></td>
+            <td><code>df1.join(df2, on="id", how="left")</code></td>
+            <td>Left keeps all from left. Triggers a Shuffle (network I/O). Beware of data skewness (OOM errors) on
+                large datasets.</td>
+        </tr>
+        <tr>
+            <td><strong>Unions</strong></td>
+            <td><code>df1.unionByName(df2, allowMissingColumns=True)</code></td>
+            <td>Stacks rows vertically. <code>unionByName</code> matches by column name, not position.</td>
+        </tr>
+        <tr>
+            <td><strong>Windows</strong></td>
+            <td><code>Window.partitionBy("x").orderBy("y")</code></td>
+            <td>Calculates aggregates/ranks across groups of rows without collapsing the result set. Use
+                <code>row_number()</code> for strict deduplication.
+            </td>
+        </tr>
+        <tr>
+            <td><strong>UDFs</strong></td>
+            <td><code>@F.udf(ReturnType)</code></td>
+            <td>Custom Python logic. Avoid if possible due to JVM-Python serialization overhead. Use built-in
+                <code>pyspark.sql.functions</code> first.
+            </td>
+        </tr>
+        <tr>
+            <td><strong>Empty Check</strong></td>
+            <td><code>df.rdd.isEmpty()</code></td>
+            <td>Prevents full cluster scans unlike <code>df.count() == 0</code>. Avoids Python list truthiness bugs of
+                <code>not df.head(1)</code>.
+            </td>
+        </tr>
+    </table>
+
+</body>
+
+</html>
