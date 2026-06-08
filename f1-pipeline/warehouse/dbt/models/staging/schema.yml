@@ -1,0 +1,15 @@
+version: 2
+
+sources:
+  - name: s3_processed
+    meta:
+      external_location: "read_parquet('s3://{{ var('bucket_name') }}/processed/{table_name}/**/*.parquet', hive_partitioning=1)"
+    tables:
+      - name: jolpica_results
+        description: "Race results ingested from the Jolpica API layered by season"
+        meta:
+          external_location: "read_parquet('s3://{{ var('bucket_name') }}/processed/jolpica/results/season=*/*.parquet', hive_partitioning=1)"
+      - name: openf1_drivers
+        description: "Granular driver event metadata from OpenF1"
+        meta:
+          external_location: "read_parquet('s3://{{ var('bucket_name') }}/processed/openf1/drivers/year=*/*.parquet', hive_partitioning=1)"
