@@ -1,6 +1,4 @@
-# ==========================================
-# KEEPING YOUR EXISTING OUTPUTS
-# ==========================================
+
 output "raw_bucket_name" {
   value = aws_s3_bucket.raw.bucket
 }
@@ -19,15 +17,19 @@ output "ingest_user_secret_key" {
   sensitive = true
 }
 
-# ==========================================
-# ADDING YOUR NEW REDSHIFT OUTPUTS
-# ==========================================
-output "redshift_role_arn" {
-  value       = aws_iam_role.redshift_s3_readonly_role.arn
-  description = "Use this ARN string inside your raw SQL COPY INTO query statements"
+# Glue Jobs
+output "glue_jolpica_job_name" {
+  value = aws_glue_job.jolpica_etl.name
 }
 
-output "redshift_endpoint" {
-  value       = aws_redshiftserverless_workgroup.f1_workgroup.endpoint[0].address
-  description = "Host endpoint domain URL address for client UI tooling connections"
+output "glue_openf1_job_name" {
+  value = aws_glue_job.openf1_etl.name
+}
+
+output "glue_kaggle_job_name" {
+  value = aws_glue_job.kaggle_etl.name
+}
+
+output "glue_job_role_arn" {
+  value = aws_iam_role.glue_job_role.arn
 }

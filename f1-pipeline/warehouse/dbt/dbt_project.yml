@@ -5,6 +5,7 @@ config-version: 2
 # This tells dbt to look at the profiles.yml file we just made in this same directory
 profile: 'f1_transform_profile'
 
+
 model-paths: ["models"]
 analysis-paths: ["analyses"]
 test-paths: ["tests"]
@@ -18,16 +19,6 @@ clean-targets:
 
 models:
   f1_analytics_warehouse:
-    staging:
-      materialized: view
-    intermediate:
-      materialized: view
-    dimensions:
-      materialized: table
-    facts:
-      materialized: table
-    marts:
-      materialized: table
 
 vars:
   bucket_name: "f1-pipeline-processed-layer-034381339055"
