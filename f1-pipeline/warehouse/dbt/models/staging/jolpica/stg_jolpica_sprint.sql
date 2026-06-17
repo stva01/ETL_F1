@@ -1,0 +1,41 @@
+{{
+  config(
+    materialized='table',
+    unique_key=['season_year', 'round', 'driver_id'],
+    meta={'owner': 'data-eng', 'domain': 'f1_racing', 'source': 'jolpica'},
+    tags=['staging', 'jolpica', 'event', 'sprint'],
+    partition_by='season_year'
+  )
+}}
+
+with source as (
+    select * from {{ source('processed_jolpica', 'sprint') }}
+),
+
+renamed as (
+    select
+        cast(season as integer)              as season_year,
+        cast(round as integer)               as round,
+        cast(driver_id as varchar)           as driver_id,
+        cast(driver_code as varchar)         as driver_code,
+        cast(driver_number as integer)       as driver_number,
+        cast(constructor_id as varchar)      as constructor_id,
+        cast(constructor_name as varchar)    as constructor_name,
+        cast(grid as integer)                as grid_position,
+        cast(position as integer)            as finishing_position,
+        cast(position_text as varchar)       as finishing_position_text,
+        cast(laps as integer)                as laps_completed,
+        cast(points as double)               as points_scored,
+        cast(time_millis as bigint)          as race_time_ms,
+        cast(time_text as varchar)           as race_time_text,
+        cast(status as varchar)              as race_status,
+
+        now() as _dbt_loaded_at,
+        'jolpica' as source_system
+    from source
+    where season is not null
+      and round is not null
+      and driver_id is not null
+)
+
+select * from renamed

@@ -1,0 +1,429 @@
+version: 2
+
+sources:
+  # ============================================================================
+  # KAGGLE HISTORICAL DATA (1950-2024)
+  # Sources from: s3://f1-pipeline-processed-layer/processed/kaggle/
+  # All tables are partitioned by 'year'
+  # ============================================================================
+  
+  - name: s3_kaggle
+    description: Historical F1 data from Kaggle Ergast database (1950-2024)
+    # database: memory  # DuckDB uses 'memory' as default. Change to your project for BigQuery.
+    schema: processed_kaggle  # This is the DuckDB schema containing Kaggle tables
+    
+    tables:
+      - name: circuits
+        description: F1 race circuit/track information
+        columns:
+          - name: circuitId
+            description: Primary key
+            tests:
+              - unique
+              - not_null
+          - name: circuitRef
+            description: Circuit reference code (monza, spa, etc)
+          - name: name
+            description: Official circuit name
+          - name: location
+            description: City/location
+          - name: country
+            description: Country code
+          - name: lat
+            description: Latitude coordinate
+          - name: lng
+            description: Longitude coordinate
+          - name: alt
+            description: Altitude in meters
+          - name: url
+            description: Wikipedia URL
+
+      - name: constructors
+        description: F1 team/constructor information
+        columns:
+          - name: constructorId
+            description: Primary key
+            tests:
+              - unique
+              - not_null
+          - name: constructorRef
+            description: Constructor reference (ferrari, mclaren, etc)
+          - name: name
+            description: Official team name
+          - name: nationality
+            description: Team nationality
+          - name: url
+            description: Wikipedia URL
+
+      - name: drivers
+        description: F1 driver information and career stats
+        columns:
+          - name: driverId
+            description: Primary key
+            tests:
+              - unique
+              - not_null
+          - name: driverRef
+            description: Driver reference (hamilton, verstappen, etc). Used as universal identifier.
+          - name: code
+            description: Three-letter driver code (HAM, VER, etc)
+          - name: forename
+            description: First name
+          - name: surname
+            description: Last name
+          - name: dob
+            description: Date of birth
+          - name: nationality
+            description: Driver nationality
+          - name: url
+            description: Wikipedia URL
+          - name: number
+            description: Current/last driver number (44 for Hamilton)
+
+      - name: seasons
+        description: F1 season reference (year, num races, etc)
+        columns:
+          - name: year
+            description: Season year, primary key
+            tests:
+              - unique
+              - not_null
+          - name: url
+            description: Season Wikipedia URL
+
+      - name: races
+        description: F1 race metadata (one row per race ever held)
+        columns:
+          - name: raceId
+            description: Primary key
+            tests:
+              - unique
+              - not_null
+          - name: year
+            description: Season year
+          - name: round
+            description: Round number within season
+          - name: circuitId
+            description: Foreign key to circuits
+          - name: name
+            description: Official race/GP name
+          - name: date
+            description: Race date
+          - name: time
+            description: Race start time (UTC)
+          - name: url
+            description: Wikipedia URL
+
+      - name: results
+        description: Race results (one row per driver per race, ~25k rows)
+        columns:
+          - name: resultId
+            description: Primary key
+          - name: raceId
+            description: Foreign key to races
+          - name: driverId
+            description: Foreign key to drivers
+          - name: constructorId
+            description: Foreign key to constructors
+          - name: number
+            description: Driver number
+          - name: grid
+            description: Grid position (1 = pole)
+          - name: position
+            description: Finishing position (NULL = DNF/DNS)
+          - name: positionText
+            description: Finishing position text (DNF, DNS, +1 LAP, etc)
+          - name: positionOrder
+            description: Position for sorting (handles text positions)
+          - name: points
+            description: Championship points earned
+          - name: laps
+            description: Number of laps completed
+          - name: time
+            description: Race time (for 1st), gap for others
+          - name: milliseconds
+            description: Race time in milliseconds (only for 1st)
+          - name: fastestLap
+            description: Fastest lap number
+          - name: rank
+            description: Rank of fastest lap
+          - name: fastestLapTime
+            description: Fastest lap time (MM:SS.mmm)
+          - name: fastestLapSpeed
+            description: Fastest lap speed (km/h)
+          - name: statusId
+            description: Foreign key to status codes
+
+      - name: qualifying
+        description: Qualifying session results (one row per driver per qualifying session)
+        columns:
+          - name: qualifyId
+            description: Primary key
+          - name: raceId
+            description: Foreign key to races
+          - name: driverId
+            description: Foreign key to drivers
+          - name: constructorId
+            description: Foreign key to constructors
+          - name: number
+            description: Driver number
+          - name: position
+            description: Qualifying position (1 = pole)
+          - name: q1
+            description: Q1 time (mm:ss.mmm)
+          - name: q2
+            description: Q2 time (mm:ss.mmm)
+          - name: q3
+            description: Q3 time (mm:ss.mmm)
+
+      - name: lap_times
+        description: Lap-by-lap timing data (millions of rows - largest table)
+        columns:
+          - name: raceId
+            description: Foreign key to races
+          - name: driverId
+            description: Foreign key to drivers
+          - name: lap
+            description: Lap number
+          - name: position
+            description: Position on this lap
+          - name: time
+            description: Lap time (MM:SS.mmm)
+          - name: milliseconds
+            description: Lap time in milliseconds
+
+      - name: pit_stops
+        description: Pit stop events during races
+        columns:
+          - name: raceId
+            description: Foreign key to races
+          - name: driverId
+            description: Foreign key to drivers
+          - name: stop
+            description: Stop number (1st, 2nd, etc)
+          - name: lap
+            description: Lap number of pit stop
+          - name: time
+            description: Pit stop time (hh:mm:ss)
+          - name: duration
+            description: Duration in pit (SS.mmm)
+          - name: milliseconds
+            description: Duration in milliseconds
+
+      - name: driver_standings
+        description: Championship standings at each point in season (snapshot)
+        columns:
+          - name: driverStandingsId
+            description: Primary key
+          - name: raceId
+            description: Foreign key to races (standings after this race)
+          - name: driverId
+            description: Foreign key to drivers
+          - name: points
+            description: Points at this point in season
+          - name: position
+            description: Championship position
+          - name: positionText
+            description: Position text
+          - name: wins
+            description: Wins so far in season
+
+      - name: constructor_standings
+        description: Constructor championship standings at each point in season
+        columns:
+          - name: constructorStandingsId
+            description: Primary key
+          - name: raceId
+            description: Foreign key to races
+          - name: constructorId
+            description: Foreign key to constructors
+          - name: points
+            description: Points at this point in season
+          - name: position
+            description: Championship position
+          - name: positionText
+            description: Position text
+          - name: wins
+            description: Constructor wins so far
+
+      - name: status
+        description: Status codes for race results (DNF, DNS, Accident, etc)
+        columns:
+          - name: statusId
+            description: Primary key
+          - name: status
+            description: Status description (Finished, DNF, Accident, etc)
+
+  # ============================================================================
+  # JOLPICA API DATA (2025+ Current Season)
+  # Data loaded from: S3 Parquet files
+  # Current storage: processed_jolpica schema in DuckDB
+  # ============================================================================
+
+  - name: processed_jolpica
+    description: Current F1 season data (Jolpica API, 2025+)
+    schema: processed_jolpica
+    
+    tables:
+      - name: results
+        description: Race results from Jolpica
+        columns:
+          - name: season
+            description: Season year
+            tests:
+              - not_null
+          - name: round
+            description: Round number within the season
+            tests:
+              - not_null
+          - name: driver_id
+            description: Driver reference string
+            tests:
+              - not_null
+
+      - name: qualifying
+        description: Qualifying results from Jolpica
+        columns:
+          - name: season
+            description: Season year
+            tests:
+              - not_null
+          - name: round
+            description: Round number
+            tests:
+              - not_null
+          - name: driver_id
+            description: Driver reference string
+            tests:
+              - not_null
+
+      - name: pitstops
+        description: Pit stop data from Jolpica
+        columns:
+          - name: season
+            description: Season year
+            tests:
+              - not_null
+          - name: round
+            description: Round number
+            tests:
+              - not_null
+
+      - name: driver_standings
+        description: Driver championship standings from Jolpica
+        columns:
+          - name: season
+            description: Season year
+            tests:
+              - not_null
+          - name: round
+            description: Round number
+            tests:
+              - not_null
+          - name: driver_id
+            description: Driver reference string
+            tests:
+              - not_null
+          - name: wins
+            description: Cumulative wins in the season
+            tests:
+              - not_null
+
+      - name: constructor_standings
+        description: Constructor championship standings from Jolpica
+        columns:
+          - name: season
+            description: Season year
+            tests:
+              - not_null
+          - name: round
+            description: Round number
+            tests:
+              - not_null
+
+      - name: sprint
+        description: Sprint race results from Jolpica (2025+)
+        columns:
+          - name: season
+            description: Season year
+            tests:
+              - not_null
+          - name: round
+            description: Round number
+            tests:
+              - not_null
+          - name: driver_id
+            description: Driver reference string
+            tests:
+              - not_null
+
+  # ============================================================================
+  # OPENF1 API DATA (2023+ Current Season with Telemetry)
+  # Data loaded from: S3 Parquet files
+  # Current storage: processed_openf1 schema in DuckDB
+  # ============================================================================
+
+  - name: processed_openf1
+    description: Detailed telemetry data (OpenF1 API, 2023+)
+    schema: processed_openf1
+    
+    tables:
+      - name: drivers
+        description: Driver telemetry metadata per session
+        columns:
+          - name: year
+            description: Season year
+            tests:
+              - not_null
+          - name: driver_number
+            description: Driver number
+            tests:
+              - not_null
+
+      - name: laps
+        description: Lap-by-lap telemetry with sector times and speed traps
+        columns:
+          - name: year
+            description: Season year
+            tests:
+              - not_null
+          - name: driver_number
+            description: Driver number
+            tests:
+              - not_null
+          - name: lap_number
+            description: Lap number
+            tests:
+              - not_null
+
+      - name: pit
+        description: Pit stop telemetry data (OpenF1, 2026+)
+        columns:
+          - name: year
+            description: Season year
+            tests:
+              - not_null
+          - name: driver_number
+            description: Driver number
+            tests:
+              - not_null
+          - name: lap_number
+            description: Lap number of pit stop
+            tests:
+              - not_null
+
+      - name: stints
+        description: Tyre stint data (compound, lap range) per driver per session (OpenF1, 2026+)
+        columns:
+          - name: year
+            description: Season year
+            tests:
+              - not_null
+          - name: driver_number
+            description: Driver number
+            tests:
+              - not_null
+          - name: stint_number
+            description: Stint sequence number within the session
+            tests:
+              - not_null

@@ -1,0 +1,296 @@
+version: 2
+
+models:
+  - name: stg_kaggle_circuits
+    description: Cleaned and renamed F1 circuit/track dimension from Kaggle Ergast source
+    columns:
+      - name: circuit_id
+        description: Primary key
+        tests:
+          - unique
+          - not_null
+      - name: circuit_ref
+        description: Circuit reference slug (e.g. monza, spa)
+        tests:
+          - not_null
+      - name: circuit_name
+        description: Official circuit name
+      - name: location
+        description: City/location of circuit
+      - name: country
+        description: Country of circuit
+      - name: latitude
+        description: GPS latitude
+      - name: longitude
+        description: GPS longitude
+      - name: altitude_meters
+        description: Altitude above sea level in metres
+      - name: source_system
+        description: Lineage tag — always 'kaggle'
+        tests:
+          - not_null
+
+  - name: stg_kaggle_constructors
+    description: Cleaned F1 constructor/team dimension from Kaggle Ergast source
+    columns:
+      - name: constructor_id
+        description: Primary key
+        tests:
+          - unique
+          - not_null
+      - name: constructor_ref
+        description: Constructor reference slug (e.g. ferrari, mclaren)
+        tests:
+          - not_null
+      - name: constructor_name
+        description: Official team name
+      - name: nationality
+        description: Team nationality
+      - name: source_system
+        description: Lineage tag — always 'kaggle'
+        tests:
+          - not_null
+
+  - name: stg_kaggle_drivers
+    description: Cleaned F1 driver dimension from Kaggle Ergast source — acts as bridge identifier table
+    columns:
+      - name: driver_id
+        description: Primary key (integer)
+        tests:
+          - unique
+          - not_null
+      - name: driver_ref
+        description: Universal driver reference slug (e.g. hamilton, verstappen)
+        tests:
+          - not_null
+      - name: driver_code
+        description: Three-letter code (HAM, VER)
+      - name: first_name
+        description: Driver first name
+      - name: last_name
+        description: Driver last name
+      - name: full_name
+        description: Concatenated full name
+      - name: date_of_birth
+        description: Date of birth
+      - name: nationality
+        description: Driver nationality
+      - name: driver_number
+        description: Permanent driver number (may be NULL for retired drivers)
+      - name: source_system
+        description: Lineage tag — always 'kaggle'
+        tests:
+          - not_null
+
+  - name: stg_kaggle_seasons
+    description: F1 season reference table from Kaggle Ergast source
+    columns:
+      - name: season_year
+        description: Season year — primary key
+        tests:
+          - unique
+          - not_null
+      - name: source_system
+        description: Lineage tag — always 'kaggle'
+        tests:
+          - not_null
+
+  - name: stg_kaggle_races
+    description: F1 race metadata — one row per race ever held
+    columns:
+      - name: race_id
+        description: Primary key
+        tests:
+          - unique
+          - not_null
+      - name: year
+        description: Season year (partition key)
+        tests:
+          - not_null
+      - name: round
+        description: Round number within season
+        tests:
+          - not_null
+      - name: circuit_id
+        description: Foreign key to stg_kaggle_circuits
+        tests:
+          - not_null
+      - name: gp_name
+        description: Official Grand Prix name
+      - name: race_date
+        description: Race date
+      - name: source_system
+        description: Lineage tag — always 'kaggle'
+        tests:
+          - not_null
+
+  - name: stg_kaggle_results
+    description: Race results — one row per driver per race
+    columns:
+      - name: result_id
+        description: Primary key
+        tests:
+          - unique
+          - not_null
+      - name: race_id
+        description: Foreign key to stg_kaggle_races
+        tests:
+          - not_null
+      - name: driver_id
+        description: Foreign key to stg_kaggle_drivers
+        tests:
+          - not_null
+      - name: constructor_id
+        description: Foreign key to stg_kaggle_constructors
+        tests:
+          - not_null
+      - name: year
+        description: Season year — partition key (derived via JOIN)
+        tests:
+          - not_null
+      - name: points_scored
+        description: Championship points earned in this race
+      - name: finishing_position
+        description: Finishing position (NULL for DNF/DNS)
+      - name: source_system
+        description: Lineage tag — always 'kaggle'
+        tests:
+          - not_null
+
+  - name: stg_kaggle_qualifying
+    description: Qualifying session results — one row per driver per qualifying session
+    columns:
+      - name: qualify_id
+        description: Primary key
+        tests:
+          - unique
+          - not_null
+      - name: race_id
+        description: Foreign key to stg_kaggle_races
+        tests:
+          - not_null
+      - name: driver_id
+        description: Foreign key to stg_kaggle_drivers
+        tests:
+          - not_null
+      - name: constructor_id
+        description: Foreign key to stg_kaggle_constructors
+        tests:
+          - not_null
+      - name: qualifying_position
+        description: Qualifying position (1 = pole)
+      - name: year
+        description: Season year — partition key (derived via JOIN)
+        tests:
+          - not_null
+      - name: source_system
+        description: Lineage tag — always 'kaggle'
+        tests:
+          - not_null
+
+  - name: stg_kaggle_lap_times
+    description: Lap-by-lap timing data — largest table (millions of rows)
+    columns:
+      - name: race_id
+        description: Foreign key to stg_kaggle_races
+        tests:
+          - not_null
+      - name: driver_id
+        description: Foreign key to stg_kaggle_drivers
+        tests:
+          - not_null
+      - name: lap_number
+        description: Lap number
+        tests:
+          - not_null
+      - name: lap_time_ms
+        description: Lap time in milliseconds
+      - name: year
+        description: Season year — partition key (derived via JOIN)
+        tests:
+          - not_null
+      - name: source_system
+        description: Lineage tag — always 'kaggle'
+        tests:
+          - not_null
+
+  - name: stg_kaggle_driver_standings
+    description: Championship driver standings snapshot after each race
+    columns:
+      - name: driver_standings_id
+        description: Primary key
+        tests:
+          - unique
+          - not_null
+      - name: race_id
+        description: Foreign key to stg_kaggle_races
+        tests:
+          - not_null
+      - name: driver_id
+        description: Foreign key to stg_kaggle_drivers
+        tests:
+          - not_null
+      - name: points
+        description: Points total at this point in the season
+      - name: position
+        description: Championship position
+      - name: wins
+        description: Cumulative wins so far in the season
+      - name: year
+        description: Season year — partition key (derived via JOIN)
+        tests:
+          - not_null
+      - name: source_system
+        description: Lineage tag — always 'kaggle'
+        tests:
+          - not_null
+
+  - name: stg_kaggle_constructor_standings
+    description: Championship constructor standings snapshot after each race (Kaggle Ergast)
+    columns:
+      - name: constructor_standings_id
+        description: Primary key
+        tests:
+          - unique
+          - not_null
+      - name: race_id
+        description: Foreign key to stg_kaggle_races (standings after this race)
+        tests:
+          - not_null
+      - name: constructor_id
+        description: Foreign key to stg_kaggle_constructors
+        tests:
+          - not_null
+      - name: points
+        description: Constructor points total at this point in the season
+      - name: position
+        description: Championship position
+      - name: position_text
+        description: Position text
+      - name: wins
+        description: Constructor wins so far in the season
+      - name: year
+        description: Season year — partition key (derived via JOIN)
+        tests:
+          - not_null
+      - name: source_system
+        description: Lineage tag — always 'kaggle'
+        tests:
+          - not_null
+
+  - name: stg_kaggle_status
+    description: Status code lookup table for race results (DNF, DNS, Accident, etc.)
+    columns:
+      - name: status_id
+        description: Primary key
+        tests:
+          - unique
+          - not_null
+      - name: status_description
+        description: Human-readable status (Finished, DNF, Accident, etc.)
+        tests:
+          - not_null
+      - name: source_system
+        description: Lineage tag — always 'kaggle'
+        tests:
+          - not_null

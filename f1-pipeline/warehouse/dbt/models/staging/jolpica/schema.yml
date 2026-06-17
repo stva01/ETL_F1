@@ -1,0 +1,162 @@
+version: 2
+
+models:
+  - name: stg_jolpica_results
+    description: Race results from Jolpica API (2025+ current season)
+    columns:
+      - name: season_year
+        description: Season year (partition key)
+        tests:
+          - not_null
+      - name: round
+        description: Round number within the season
+        tests:
+          - not_null
+      - name: driver_id
+        description: Driver identifier string (e.g. 'hamilton')
+        tests:
+          - not_null
+      - name: constructor_id
+        description: Constructor identifier string
+        tests:
+          - not_null
+      - name: finishing_position
+        description: Finishing position (NULL for DNF/DNS)
+      - name: points_scored
+        description: Championship points earned
+      - name: race_status
+        description: Race completion status text
+      - name: source_system
+        description: Lineage tag — always 'jolpica'
+        tests:
+          - not_null
+
+  - name: stg_jolpica_qualifying
+    description: Qualifying results from Jolpica API (2025+ current season)
+    columns:
+      - name: season_year
+        description: Season year (partition key)
+        tests:
+          - not_null
+      - name: round
+        description: Round number within the season
+        tests:
+          - not_null
+      - name: driver_id
+        description: Driver identifier string
+        tests:
+          - not_null
+      - name: qualifying_position
+        description: Qualifying position (1 = pole)
+      - name: q1_ms
+        description: Q1 lap time in milliseconds
+      - name: q2_ms
+        description: Q2 lap time in milliseconds
+      - name: q3_ms
+        description: Q3 lap time in milliseconds
+      - name: source_system
+        description: Lineage tag — always 'jolpica'
+        tests:
+          - not_null
+
+  - name: stg_jolpica_driver_standings
+    description: Driver championship standings from Jolpica API (2025+ current season)
+    columns:
+      - name: season_year
+        description: Season year (partition key)
+        tests:
+          - not_null
+      - name: round
+        description: Round number within the season
+        tests:
+          - not_null
+      - name: driver_id
+        description: Driver identifier string
+        tests:
+          - not_null
+      - name: position
+        description: Championship standing position
+      - name: points
+        description: Points total at this point in the season
+      - name: wins
+        description: Cumulative wins so far in the season
+      - name: source_system
+        description: Lineage tag — always 'jolpica'
+        tests:
+          - not_null
+
+  - name: stg_jolpica_constructor_standings
+    description: Constructor championship standings snapshot from Jolpica API (2025/2026)
+    columns:
+      - name: season_year
+        description: Season year (partition key)
+        tests:
+          - not_null
+      - name: round
+        description: Round number
+        tests:
+          - not_null
+      - name: constructor_id
+        description: Constructor reference string
+        tests:
+          - not_null
+      - name: points
+        description: Points total at this point in the season
+      - name: wins
+        description: Cumulative wins so far
+      - name: source_system
+        description: Lineage tag — always 'jolpica'
+        tests:
+          - not_null
+
+  - name: stg_jolpica_pitstops
+    description: Pit stop events from Jolpica API (2025/2026)
+    columns:
+      - name: season_year
+        description: Season year (partition key)
+        tests:
+          - not_null
+      - name: round
+        description: Round number
+        tests:
+          - not_null
+      - name: driver_id
+        description: Driver reference string
+        tests:
+          - not_null
+      - name: stop
+        description: Stop sequence number within the race
+        tests:
+          - not_null
+      - name: duration_ms
+        description: Pit stop duration in milliseconds
+      - name: source_system
+        description: Lineage tag — always 'jolpica'
+        tests:
+          - not_null
+
+  - name: stg_jolpica_sprint
+    description: Sprint race results from Jolpica API (2025/2026)
+    columns:
+      - name: season_year
+        description: Season year (partition key)
+        tests:
+          - not_null
+      - name: round
+        description: Round number
+        tests:
+          - not_null
+      - name: driver_id
+        description: Driver reference string
+        tests:
+          - not_null
+      - name: constructor_id
+        description: Constructor reference string
+        tests:
+          - not_null
+      - name: points_scored
+        description: Sprint points earned
+      - name: source_system
+        description: Lineage tag — always 'jolpica'
+        tests:
+          - not_null

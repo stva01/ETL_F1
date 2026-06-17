@@ -1,0 +1,118 @@
+version: 2
+
+models:
+  - name: stg_openf1_drivers
+    description: Driver telemetry metadata per session from OpenF1 API (2023+)
+    columns:
+      - name: year
+        description: Season year (partition key)
+        tests:
+          - not_null
+      - name: driver_number
+        description: Driver number for the season
+        tests:
+          - not_null
+      - name: driver_full_name
+        description: Full driver name from broadcast data
+      - name: driver_code
+        description: Three-letter broadcast acronym (e.g. HAM, VER)
+      - name: country_code
+        description: Driver country code
+      - name: team_name
+        description: Constructor/team name
+      - name: team_colour
+        description: Hex colour used for telemetry visualisation
+      - name: source_system
+        description: Lineage tag — always 'openf1'
+        tests:
+          - not_null
+
+  - name: stg_openf1_laps
+    description: Lap-by-lap telemetry with sector times and speed traps (OpenF1, 2023+). Incremental model.
+    columns:
+      - name: year
+        description: Season year (partition key)
+        tests:
+          - not_null
+      - name: driver_number
+        description: Driver number
+        tests:
+          - not_null
+      - name: lap_number
+        description: Lap number
+        tests:
+          - not_null
+      - name: lap_duration_ms
+        description: Total lap duration in milliseconds
+      - name: sector_1_ms
+        description: Sector 1 duration in milliseconds
+      - name: sector_2_ms
+        description: Sector 2 duration in milliseconds
+      - name: sector_3_ms
+        description: Sector 3 duration in milliseconds
+      - name: speed_trap_1
+        description: Speed at intermediate 1 trap (km/h)
+      - name: speed_trap_2
+        description: Speed at intermediate 2 trap (km/h)
+      - name: speed_trap_3
+        description: Speed at finish line speed trap (km/h)
+      - name: is_pit_out_lap
+        description: Boolean — true if this was an out-lap from the pits
+      - name: source_system
+        description: Lineage tag — always 'openf1'
+        tests:
+          - not_null
+
+  - name: stg_openf1_pit
+    description: Pit stop telemetry from OpenF1 API (2026+)
+    columns:
+      - name: year
+        description: Season year (partition key)
+        tests:
+          - not_null
+      - name: driver_number
+        description: Driver number
+        tests:
+          - not_null
+      - name: lap_number
+        description: Lap number of the pit stop
+        tests:
+          - not_null
+      - name: pit_duration_ms
+        description: Pit stop duration in milliseconds
+      - name: lane_duration_seconds
+        description: Time in pit lane including in/out
+      - name: source_system
+        description: Lineage tag — always 'openf1'
+        tests:
+          - not_null
+
+  - name: stg_openf1_stints
+    description: Tyre stint data from OpenF1 API (2026+) — one row per stint per driver per session
+    columns:
+      - name: year
+        description: Season year (partition key)
+        tests:
+          - not_null
+      - name: driver_number
+        description: Driver number
+        tests:
+          - not_null
+      - name: stint_number
+        description: Stint sequence within the session
+        tests:
+          - not_null
+      - name: tyre_compound
+        description: Tyre compound (SOFT, MEDIUM, HARD, INTERMEDIATE, WET)
+      - name: lap_start
+        description: First lap of this stint
+      - name: lap_end
+        description: Last lap of this stint
+      - name: stint_laps
+        description: Number of laps in this stint
+      - name: tyre_age_at_start_laps
+        description: Laps already on the tyre at stint start
+      - name: source_system
+        description: Lineage tag — always 'openf1'
+        tests:
+          - not_null
