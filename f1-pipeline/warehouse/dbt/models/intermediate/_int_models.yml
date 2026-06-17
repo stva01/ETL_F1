@@ -1,0 +1,220 @@
+version: 2
+
+models:
+  - name: int_driver_bridge
+    description: >
+      Identity bridge mapping all three driver ID systems to one canonical
+      Kaggle integer driver_id. One row per driver, all-time.
+    columns:
+      - name: driver_id
+        description: Canonical integer key (Kaggle master)
+        tests:
+          - unique
+          - not_null
+      - name: driver_ref
+        description: Kaggle driver reference string (e.g. 'hamilton')
+        tests:
+          - not_null
+      - name: jolpica_driver_id
+        description: Jolpica driver_id string — NULL if driver not in 2025+ data
+      - name: openf1_driver_number
+        description: OpenF1 driver number — NULL if no telemetry data
+      - name: is_active_2025
+        description: True if driver appears in 2025+ Jolpica data
+
+  - name: int_constructor_bridge
+    description: >
+      Identity bridge mapping Kaggle constructor integer IDs, Jolpica string
+      constructor refs, and OpenF1 team names. One row per constructor, all-time.
+    columns:
+      - name: constructor_id
+        description: Canonical integer key (Kaggle master)
+        tests:
+          - unique
+          - not_null
+      - name: constructor_ref
+        description: Kaggle constructor reference string (e.g. 'red_bull')
+        tests:
+          - not_null
+      - name: jolpica_constructor_id
+        description: Jolpica constructor string — NULL if not in 2025+ data
+      - name: openf1_team_name
+        description: OpenF1 team name — fuzzy-matched, NULL if unresolved
+
+  - name: int_race_bridge
+    description: >
+      Unified race calendar (1950–2026+). Kaggle races keep their original
+      race_id; 2025+ Jolpica-only races get synthetic race_ids
+      (100000 + year*100 + round).
+    columns:
+      - name: race_id
+        description: Integer race key (Kaggle native or synthetic for 2025+)
+        tests:
+          - unique
+          - not_null
+      - name: year
+        description: Season year
+        tests:
+          - not_null
+      - name: round
+        description: Round number within the season
+        tests:
+          - not_null
+      - name: gp_name
+        description: Grand Prix name (or generated label for synthetic races)
+      - name: data_source
+        description: kaggle for historical races, jolpica for 2025+ only
+
+  - name: int_results_unified
+    description: >
+      One row per race result, all-time (1950–2026+). UNIONs Kaggle (26,759)
+      and Jolpica (1,134) results with a shared integer key schema.
+      All Jolpica string IDs are resolved to integer keys via bridge tables.
+    columns:
+      - name: result_id
+        description: Integer result key (Kaggle native; synthetic for Jolpica)
+        tests:
+          - not_null
+      - name: race_id
+        description: FK to int_race_bridge
+        tests:
+          - not_null
+      - name: driver_id
+        description: FK to int_driver_bridge (Kaggle integer key)
+      - name: constructor_id
+        description: FK to int_constructor_bridge (Kaggle integer key)
+      - name: year
+        description: Season year
+        tests:
+          - not_null
+      - name: source_system
+        description: Data origin — 'kaggle' or 'jolpica'
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['kaggle', 'jolpica']
+
+  - name: int_qualifying_unified
+    description: >
+      One row per qualifying result, all-time (1950–2026+). UNIONs Kaggle
+      (10,494) and Jolpica (608). Both text times and milliseconds preserved.
+    columns:
+      - name: race_id
+        description: FK to int_race_bridge
+        tests:
+          - not_null
+      - name: driver_id
+        description: FK to int_driver_bridge
+      - name: year
+        description: Season year
+        tests:
+          - not_null
+      - name: qualifying_position
+        description: Grid position earned in qualifying (1 = pole)
+      - name: source_system
+        description: Data origin — 'kaggle' or 'jolpica'
+        tests:
+          - not_null
+
+  - name: int_pitstops_unified
+    description: >
+      One row per pit stop event (Kaggle 2011–2024: 11,371 rows;
+      Jolpica 2025+: ~1,043 rows). UNIONed with shared schema.
+    columns:
+      - name: race_id
+        description: FK to int_race_bridge
+        tests:
+          - not_null
+      - name: driver_id
+        description: FK to int_driver_bridge
+      - name: stop_number
+        description: Stop sequence number within the race (1, 2, 3...)
+        tests:
+          - not_null
+      - name: source_system
+        description: Data origin
+        tests:
+          - not_null
+
+  - name: int_standings_driver_eoy
+    description: >
+      One row per driver per season — the FINAL championship standing after
+      the last race of each year. Key input for computing championships_won.
+    columns:
+      - name: driver_id
+        description: FK to int_driver_bridge (Kaggle integer)
+        tests:
+          - not_null
+      - name: year
+        description: Season year
+        tests:
+          - not_null
+      - name: championship_position
+        description: Final championship position (1 = champion)
+      - name: championship_points
+        description: Final season points total
+      - name: season_wins
+        description: Race wins that season
+
+  - name: int_standings_constructor_eoy
+    description: >
+      One row per constructor per season — final championship standing.
+      Key input for computing constructor championships_won.
+    columns:
+      - name: constructor_id
+        description: FK to int_constructor_bridge (Kaggle integer)
+        tests:
+          - not_null
+      - name: year
+        description: Season year
+        tests:
+          - not_null
+      - name: championship_position
+        description: Final championship position (1 = champion)
+      - name: championship_points
+        description: Final season points total
+
+  - name: int_results_enriched
+    description: >
+      The primary input for all mart models. One row per race result, fully
+      denormalized with driver names, constructor names, circuit info, status,
+      and qualifying position pre-joined. Includes pre-computed boolean flags:
+      is_winner, is_podium, is_pole, is_fastest_lap, is_dnf.
+    columns:
+      - name: result_id
+        description: Integer result key
+        tests:
+          - not_null
+      - name: race_id
+        description: FK to int_race_bridge
+        tests:
+          - not_null
+      - name: driver_id
+        description: FK to int_driver_bridge
+      - name: constructor_id
+        description: FK to int_constructor_bridge
+      - name: year
+        description: Season year
+        tests:
+          - not_null
+      - name: driver_name
+        description: Full driver name (e.g. 'Lewis Hamilton')
+      - name: constructor_name
+        description: Constructor/team name
+      - name: gp_name
+        description: Grand Prix name
+      - name: is_winner
+        description: True if finishing_position = 1
+      - name: is_podium
+        description: True if finishing_position <= 3
+      - name: is_pole
+        description: True if qualifying_position = 1
+      - name: is_fastest_lap
+        description: True if fastest_lap_rank = 1
+      - name: is_dnf
+        description: True if driver did not finish
+      - name: source_system
+        description: Data origin — 'kaggle' or 'jolpica'
+        tests:
+          - not_null

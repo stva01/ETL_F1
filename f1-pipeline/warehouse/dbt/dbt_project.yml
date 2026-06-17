@@ -22,6 +22,9 @@ models:
     staging:
       +materialized: table
       +schema: staging
+    intermediate:
+      +materialized: table
+      +schema: intermediate
 
 vars:
   bucket_name: "f1-pipeline-processed-layer-034381339055"
