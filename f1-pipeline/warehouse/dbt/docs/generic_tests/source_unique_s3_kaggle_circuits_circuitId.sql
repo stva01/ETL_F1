@@ -1,0 +1,1 @@
+{{ test_unique(column_name="circuitId", model=get_where_subquery(source('s3_kaggle', 'circuits'))) }}

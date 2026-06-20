@@ -1,0 +1,1 @@
+SELECT driver_key, full_name, championship_titles, total_race_starts, total_wins FROM mart_driver_career WHERE full_name IN ('Lewis Hamilton', 'Michael Schumacher', 'Fernando Alonso', 'Rubens Barrichello')

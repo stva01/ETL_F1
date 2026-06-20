@@ -1,0 +1,1 @@
+{{ test_not_null(column_name="driverId", model=get_where_subquery(source('s3_kaggle', 'drivers'))) }}

@@ -1,0 +1,1 @@
+{{ test_not_null(column_name="driver_id", model=get_where_subquery(ref('int_standings_driver_eoy'))) }}

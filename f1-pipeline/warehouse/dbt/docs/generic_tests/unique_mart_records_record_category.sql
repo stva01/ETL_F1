@@ -1,0 +1,1 @@
+{{ test_unique(column_name="record_category", model=get_where_subquery(ref('mart_records'))) }}

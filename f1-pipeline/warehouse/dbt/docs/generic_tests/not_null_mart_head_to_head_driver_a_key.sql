@@ -1,0 +1,1 @@
+{{ test_not_null(column_name="driver_a_key", model=get_where_subquery(ref('mart_head_to_head'))) }}

@@ -1,0 +1,1 @@
+{{ dbt_utils.test_unique_combination_of_columns(combination_of_columns=["record_category","record_type"], model=get_where_subquery(ref('mart_records'))) }}

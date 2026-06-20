@@ -1,0 +1,11 @@
+
+    
+    
+
+
+
+select source_system
+from "f1_analytics"."main_staging"."stg_kaggle_driver_standings"
+where source_system is null
+
+

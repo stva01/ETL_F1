@@ -1,0 +1,1 @@
+{{ test_not_null(column_name="wins", model=get_where_subquery(source('processed_jolpica', 'driver_standings'))) }}

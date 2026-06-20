@@ -1,0 +1,1 @@
+{{ test_unique(column_name="constructor_id", model=get_where_subquery(ref('int_constructor_bridge'))) }}

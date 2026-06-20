@@ -1,0 +1,1 @@
+{{ test_not_null(column_name="stop_number", model=get_where_subquery(ref('int_pitstops_unified'))) }}

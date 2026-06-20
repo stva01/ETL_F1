@@ -1,0 +1,1 @@
+select cs.year, cs.position, cs.points, cs.wins, c.constructor_name from "f1_analytics"."main_staging"."stg_kaggle_constructor_standings" cs join "f1_analytics"."main_staging"."stg_kaggle_constructors" c on cs.constructor_id = c.constructor_id where c.constructor_ref = 'ferrari' and cs.year = 2004 order by cs.race_id desc

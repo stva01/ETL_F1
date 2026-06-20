@@ -1,0 +1,11 @@
+
+    
+    
+
+
+
+select lap_number
+from "f1_analytics"."processed_openf1"."laps"
+where lap_number is null
+
+

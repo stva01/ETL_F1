@@ -1,0 +1,1 @@
+{{ test_not_null(column_name="year", model=get_where_subquery(ref('int_qualifying_unified'))) }}

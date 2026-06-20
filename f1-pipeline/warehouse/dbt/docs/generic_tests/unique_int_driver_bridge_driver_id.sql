@@ -1,0 +1,1 @@
+{{ test_unique(column_name="driver_id", model=get_where_subquery(ref('int_driver_bridge'))) }}

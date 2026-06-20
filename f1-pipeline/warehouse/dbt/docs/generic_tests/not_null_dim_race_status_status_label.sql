@@ -1,0 +1,1 @@
+{{ test_not_null(column_name="status_label", model=get_where_subquery(ref('dim_race_status'))) }}

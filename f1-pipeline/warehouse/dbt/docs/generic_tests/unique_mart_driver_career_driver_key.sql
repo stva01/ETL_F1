@@ -1,0 +1,1 @@
+{{ test_unique(column_name="driver_key", model=get_where_subquery(ref('mart_driver_career'))) }}

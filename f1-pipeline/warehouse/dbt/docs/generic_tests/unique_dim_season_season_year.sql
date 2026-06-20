@@ -1,0 +1,1 @@
+{{ test_unique(column_name="season_year", model=get_where_subquery(ref('dim_season'))) }}

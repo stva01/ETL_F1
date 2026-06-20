@@ -1,0 +1,1 @@
+{{ test_not_null(column_name="raceId", model=get_where_subquery(source('s3_kaggle', 'races'))) }}

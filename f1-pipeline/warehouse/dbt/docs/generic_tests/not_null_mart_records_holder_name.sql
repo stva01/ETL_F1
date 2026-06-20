@@ -1,0 +1,1 @@
+{{ test_not_null(column_name="holder_name", model=get_where_subquery(ref('mart_records'))) }}

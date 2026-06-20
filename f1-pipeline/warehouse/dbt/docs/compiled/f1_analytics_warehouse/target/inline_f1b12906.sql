@@ -1,0 +1,1 @@
+SELECT driver_id, COUNT(*) as cnt FROM int_standings_driver_eoy WHERE championship_position = 1 GROUP BY 1 ORDER BY 2 DESC LIMIT 10

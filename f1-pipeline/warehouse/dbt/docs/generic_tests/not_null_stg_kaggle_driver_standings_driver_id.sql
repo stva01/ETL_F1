@@ -1,0 +1,1 @@
+{{ test_not_null(column_name="driver_id", model=get_where_subquery(ref('stg_kaggle_driver_standings'))) }}

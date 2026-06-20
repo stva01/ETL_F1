@@ -1,0 +1,1 @@
+{{ test_not_null(column_name="driver_number", model=get_where_subquery(source('processed_openf1', 'drivers'))) }}
