@@ -1,1 +1,0 @@
-{{ test_not_null(column_name="championship_titles", model=get_where_subquery(ref('mart_driver_career'))) }}

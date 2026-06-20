@@ -1,1 +1,0 @@
-{{ test_relationships(column_name="race_key", field="race_key", model=get_where_subquery(ref('fct_race_result')), to=ref('dim_race')) }}

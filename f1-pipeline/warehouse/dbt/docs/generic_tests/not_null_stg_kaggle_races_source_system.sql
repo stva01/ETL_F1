@@ -1,1 +1,0 @@
-{{ test_not_null(column_name="source_system", model=get_where_subquery(ref('stg_kaggle_races'))) }}

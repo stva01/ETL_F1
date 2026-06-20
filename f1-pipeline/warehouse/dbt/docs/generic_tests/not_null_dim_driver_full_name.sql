@@ -1,1 +1,0 @@
-{{ test_not_null(column_name="full_name", model=get_where_subquery(ref('dim_driver'))) }}

@@ -1,1 +1,0 @@
-{{ test_not_null(column_name="driver_key", model=get_where_subquery(ref('fct_lap_time'))) }}

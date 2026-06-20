@@ -1,1 +1,0 @@
-{{ test_unique(column_name="circuit_key", model=get_where_subquery(ref('dim_circuit'))) }}

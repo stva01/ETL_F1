@@ -1,1 +1,0 @@
-{{ test_not_null(column_name="driver_id", model=get_where_subquery(ref('int_driver_bridge'))) }}

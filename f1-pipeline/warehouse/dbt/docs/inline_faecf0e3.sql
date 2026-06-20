@@ -1,1 +1,0 @@
-select constructor_id, constructor_ref, count(*) as n from {{ ref('int_constructor_bridge') }} group by 1,2 having count(*) > 1 order by n desc

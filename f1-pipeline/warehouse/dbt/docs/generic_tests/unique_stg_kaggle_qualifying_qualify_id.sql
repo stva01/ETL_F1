@@ -1,1 +1,0 @@
-{{ test_unique(column_name="qualify_id", model=get_where_subquery(ref('stg_kaggle_qualifying'))) }}

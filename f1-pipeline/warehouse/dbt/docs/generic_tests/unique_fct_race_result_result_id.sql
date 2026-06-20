@@ -1,1 +1,0 @@
-{{ test_unique(column_name="result_id", model=get_where_subquery(ref('fct_race_result'))) }}

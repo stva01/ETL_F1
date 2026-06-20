@@ -1,1 +1,0 @@
-select count(*) as total_rows, count(distinct constructor_id) as constructors, count(distinct year) as seasons, min(year) as first_year, max(year) as last_year from {{ ref('stg_kaggle_constructor_standings') }}

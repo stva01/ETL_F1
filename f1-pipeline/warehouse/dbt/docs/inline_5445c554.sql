@@ -1,1 +1,0 @@
-SELECT source_system, COUNT(*) as cnt FROM int_results_unified GROUP BY 1 ORDER BY 1

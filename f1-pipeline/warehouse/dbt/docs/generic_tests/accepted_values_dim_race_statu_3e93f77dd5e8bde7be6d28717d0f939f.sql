@@ -1,1 +1,0 @@
-{{ test_accepted_values(column_name="status_category", model=get_where_subquery(ref('dim_race_status')), values=["Finished","DNF","DNS","DSQ"]) }}

@@ -1,1 +1,0 @@
-select count(*) as n from "f1_analytics"."processed_kaggle"."pit_stops"

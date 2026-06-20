@@ -1,1 +1,0 @@
-select count(*) as n from {{ source('s3_kaggle', 'pit_stops') }}

@@ -1,1 +1,0 @@
-select cs.constructor_standings_id, cs.year, cs.position, cs.points, cs.wins, c.constructor_name from {{ ref('stg_kaggle_constructor_standings') }} cs join {{ ref('stg_kaggle_constructors') }} c on cs.constructor_id = c.constructor_id where c.constructor_ref = 'ferrari' and cs.year = 2004 order by cs.race_id desc limit 1

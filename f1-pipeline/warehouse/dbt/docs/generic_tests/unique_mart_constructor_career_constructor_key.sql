@@ -1,1 +1,0 @@
-{{ test_unique(column_name="constructor_key", model=get_where_subquery(ref('mart_constructor_career'))) }}

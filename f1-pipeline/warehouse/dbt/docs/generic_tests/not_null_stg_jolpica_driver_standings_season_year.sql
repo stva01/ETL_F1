@@ -1,1 +1,0 @@
-{{ test_not_null(column_name="season_year", model=get_where_subquery(ref('stg_jolpica_driver_standings'))) }}

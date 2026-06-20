@@ -1,1 +1,0 @@
-{{ test_accepted_values(column_name="source_system", model=get_where_subquery(ref('fct_lap_time')), values=["kaggle","openf1"]) }}

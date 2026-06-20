@@ -1,1 +1,0 @@
-{{ test_not_null(column_name="lap_number", model=get_where_subquery(ref('stg_kaggle_lap_times'))) }}
