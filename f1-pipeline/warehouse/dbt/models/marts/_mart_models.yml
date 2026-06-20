@@ -1,0 +1,342 @@
+version: 2
+
+models:
+
+  # ─── DIMENSIONS ──────────────────────────────────────────────────────────────
+
+  - name: dim_race_status
+    description: >
+      One row per race status code (~140 rows). Provides categorized status
+      (Finished/DNF/DNS/DSQ) and boolean flags for mechanical/accident causes.
+    columns:
+      - name: status_key
+        description: PK — Kaggle status_id
+        tests:
+          - unique
+          - not_null
+      - name: status_label
+        description: Status description string (e.g. 'Engine', 'Finished')
+        tests:
+          - not_null
+      - name: status_category
+        description: Grouped category — Finished, DNF, DNS, or DSQ
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Finished', 'DNF', 'DNS', 'DSQ']
+
+  - name: dim_circuit
+    description: One row per circuit (~77 rows). Geographic and naming information.
+    columns:
+      - name: circuit_key
+        description: PK — Kaggle circuit_id
+        tests:
+          - unique
+          - not_null
+      - name: circuit_ref
+        tests:
+          - not_null
+      - name: circuit_name
+        tests:
+          - not_null
+
+  - name: dim_driver
+    description: >
+      One row per driver, all-time (~860 rows). Identity, biographic, and
+      career span data. All three ID systems bridged to canonical Kaggle integer.
+    columns:
+      - name: driver_key
+        description: PK — canonical Kaggle driver_id integer
+        tests:
+          - unique
+          - not_null
+      - name: full_name
+        tests:
+          - not_null
+      - name: driver_ref
+        tests:
+          - not_null
+
+  - name: dim_constructor
+    description: One row per constructor, all-time (~210 rows). Team identity and career span.
+    columns:
+      - name: constructor_key
+        description: PK — canonical Kaggle constructor_id integer
+        tests:
+          - unique
+          - not_null
+      - name: constructor_name
+        tests:
+          - not_null
+      - name: constructor_ref
+        tests:
+          - not_null
+
+  - name: dim_race
+    description: >
+      One row per Grand Prix event (~1,120 rows). Unified race calendar covering
+      Kaggle (1950-2024) and Jolpica (2025+) with circuit linkage.
+    columns:
+      - name: race_key
+        description: PK — race_id (Kaggle native or synthetic for 2025+)
+        tests:
+          - unique
+          - not_null
+      - name: season_year
+        tests:
+          - not_null
+      - name: round_number
+        tests:
+          - not_null
+      - name: circuit_key
+        description: FK → dim_circuit (NULL for Jolpica-only 2025+ races missing circuit data)
+
+  - name: dim_season
+    description: >
+      One row per F1 season (~76 rows). Includes champion names (NULL if season
+      still in progress), era labels, and total race counts.
+    columns:
+      - name: season_year
+        description: PK — season year
+        tests:
+          - unique
+          - not_null
+      - name: era_label
+        tests:
+          - not_null
+
+  # ─── FACTS ───────────────────────────────────────────────────────────────────
+
+  - name: fct_race_result
+    description: >
+      One row per driver × race start (~28K rows). Primary analytical fact table.
+      Incremental (merge strategy) — new seasons append, corrections overwrite.
+    columns:
+      - name: result_id
+        description: PK — from int_results_enriched
+        tests:
+          - unique
+          - not_null
+      - name: race_key
+        description: FK → dim_race
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_race')
+                field: race_key
+      - name: driver_key
+        description: FK → dim_driver
+      - name: constructor_key
+        description: FK → dim_constructor
+      - name: season_year
+        tests:
+          - not_null
+      - name: source_system
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['kaggle', 'jolpica']
+
+  - name: fct_qualifying
+    description: >
+      One row per driver × qualifying session (~11K rows). Incremental.
+      Contains Q1/Q2/Q3 times in both text and milliseconds.
+    columns:
+      - name: qualify_id
+        description: PK
+        tests:
+          - unique
+          - not_null
+      - name: race_key
+        description: FK → dim_race
+        tests:
+          - not_null
+      - name: driver_key
+        description: FK → dim_driver
+      - name: season_year
+        tests:
+          - not_null
+      - name: source_system
+        tests:
+          - not_null
+
+  - name: fct_pit_stop
+    description: >
+      One row per pit stop event (~12K rows). Incremental.
+      Grain: (race_key, driver_key, stop_number).
+    columns:
+      - name: race_key
+        description: FK → dim_race
+        tests:
+          - not_null
+      - name: driver_key
+        description: FK → dim_driver
+        tests:
+          - not_null
+      - name: stop_number
+        tests:
+          - not_null
+      - name: season_year
+        tests:
+          - not_null
+
+  - name: fct_lap_time
+    description: >
+      One row per driver × lap (~550K+ rows). LARGEST table in the warehouse.
+      Incremental + partitioned by season_year. Never query directly — use marts.
+    columns:
+      - name: race_id
+        tests:
+          - not_null
+      - name: driver_key
+        tests:
+          - not_null
+      - name: season_year
+        tests:
+          - not_null
+      - name: lap_number
+        tests:
+          - not_null
+      - name: source_system
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['kaggle', 'openf1']
+
+  # ─── MARTS ───────────────────────────────────────────────────────────────────
+
+  - name: mart_driver_career
+    description: >
+      One row per driver, all-time (~860 rows). Pre-aggregated career stats
+      for dashboard leaderboards, hero stats, and Compare tab.
+    columns:
+      - name: driver_key
+        description: PK — FK → dim_driver
+        tests:
+          - unique
+          - not_null
+      - name: full_name
+        tests:
+          - not_null
+      - name: total_race_starts
+        tests:
+          - not_null
+      - name: championship_titles
+        tests:
+          - not_null
+
+  - name: mart_driver_season
+    description: >
+      One row per driver × season (~20K rows). Per-season stats including
+      championship position and primary constructor.
+    columns:
+      - name: driver_key
+        tests:
+          - not_null
+      - name: season_year
+        tests:
+          - not_null
+
+  - name: mart_constructor_career
+    description: >
+      One row per constructor (~210 rows). All-time career aggregates including
+      wins, titles, and most successful driver.
+    columns:
+      - name: constructor_key
+        description: PK — FK → dim_constructor
+        tests:
+          - unique
+          - not_null
+      - name: constructor_name
+        tests:
+          - not_null
+      - name: constructor_titles
+        tests:
+          - not_null
+
+  - name: mart_season_summary
+    description: >
+      One row per season (~76 rows). Season-level summary with champions,
+      era labels, unique winners, and closest championship gap.
+    columns:
+      - name: season_year
+        description: PK
+        tests:
+          - unique
+          - not_null
+
+  - name: mart_circuit_stats
+    description: >
+      One row per circuit (~77 rows). Races hosted, most successful driver
+      and constructor at each circuit.
+    columns:
+      - name: circuit_key
+        description: PK — FK → dim_circuit
+        tests:
+          - unique
+          - not_null
+
+  - name: mart_race_summary
+    description: >
+      One row per race (~1,120 rows). Denormalized race summary with winner,
+      pole sitter, fastest lap holder, and DNF counts.
+    columns:
+      - name: race_key
+        description: PK — FK → dim_race
+        tests:
+          - unique
+          - not_null
+      - name: season_year
+        tests:
+          - not_null
+
+  - name: mart_head_to_head
+    description: >
+      One row per (driver_a, driver_b, season) — teammate pairs only (~1,100-1,500 rows).
+      driver_a_key < driver_b_key enforced to prevent duplicate pairs.
+    columns:
+      - name: driver_a_key
+        description: FK → dim_driver (always the lower integer key in the pair)
+        tests:
+          - not_null
+      - name: driver_b_key
+        description: FK → dim_driver (always the higher integer key)
+        tests:
+          - not_null
+      - name: season_year
+        tests:
+          - not_null
+      - name: races_as_teammates
+        tests:
+          - not_null
+
+  - name: mart_records
+    description: >
+      One row per record category (~12 rows). Dynamically computed all-time
+      records. Updates automatically as underlying fact data grows.
+      PK is (record_category, record_type) — some categories have both driver and constructor rows.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - record_category
+              - record_type
+    columns:
+      - name: record_category
+        description: Record name (PK component)
+        tests:
+          - not_null
+      - name: record_type
+        description: driver or constructor (PK component)
+        tests:
+          - not_null
+      - name: holder_name
+        tests:
+          - not_null
+      - name: record_value
+        tests:
+          - not_null

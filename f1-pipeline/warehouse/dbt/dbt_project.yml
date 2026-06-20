@@ -25,6 +25,13 @@ models:
     intermediate:
       +materialized: table
       +schema: intermediate
+    marts:
+      +materialized: table
+      +schema: marts
+      dimensions:
+        +tags: ['dimension', 'gold']
+      facts:
+        +tags: ['fact', 'gold']
 
 vars:
   bucket_name: "f1-pipeline-processed-layer-034381339055"

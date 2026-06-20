@@ -26,39 +26,39 @@
 
 ---
 
-## 3.5. Phase 2.5: dbt Intermediate Models (staging → marts bridge)
+## 3.5. [x] Phase 2.5: dbt Intermediate Models (staging → marts bridge)
 
 **Goal:** Build the `models/intermediate/` layer that solves three critical problems before the Gold-layer marts can be constructed.
 
 ### Problem A — Identity Fragmentation
-* Each source uses a different key system (Kaggle integers, Jolpica strings, OpenF1 driver numbers).
-* Build `int_driver_bridge` to map all three systems to the canonical Kaggle `driver_id` integer.
-* Build `int_constructor_bridge` for constructor identity (Kaggle `constructor_ref` ↔ Jolpica `constructor_id` ↔ OpenF1 `team_name`).
-* Build `int_race_bridge` to map Jolpica `(season_year, round)` → Kaggle `race_id`.
+* [x] Each source uses a different key system (Kaggle integers, Jolpica strings, OpenF1 driver numbers).
+* [x] Build `int_driver_bridge` to map all three systems to the canonical Kaggle `driver_id` integer.
+* [x] Build `int_constructor_bridge` for constructor identity (Kaggle `constructor_ref` ↔ Jolpica `constructor_id` ↔ OpenF1 `team_name`).
+* [x] Build `int_race_bridge` to map Jolpica `(season_year, round)` → Kaggle `race_id`.
 
 ### Problem B — Timeline Gap (Kaggle 1950–2024, Jolpica 2025–2026)
-* Build `int_results_unified` that UNIONs Kaggle results (26,759 rows) + Jolpica results (1,134 rows) into one spine with shared column schema.
-* Build `int_qualifying_unified` that UNIONs Kaggle qualifying (10,494 rows) + Jolpica qualifying (608 rows).
-* Build `int_pitstops_unified` that UNIONs Kaggle pit stops (11,371 rows) + Jolpica pit stops (1,043 rows).
+* [x] Build `int_results_unified` that UNIONs Kaggle results (26,759 rows) + Jolpica results (1,134 rows) into one spine with shared column schema.
+* [x] Build `int_qualifying_unified` that UNIONs Kaggle qualifying (10,494 rows) + Jolpica qualifying (608 rows).
+* [x] Build `int_pitstops_unified` that UNIONs Kaggle pit stops (11,371 rows) + Jolpica pit stops (1,043 rows).
 
 ### Problem C — Grain Mismatch (transactional → seasonal/career)
-* Build `int_standings_driver_eoy` — filter driver standings to only the final-round snapshot per season, producing exactly one row per (driver_id, year).
-* Build `int_standings_constructor_eoy` — same for constructors (requires new `stg_kaggle_constructor_standings` staging model).
-* Build `int_results_enriched` — fully joined result row with driver names, constructor names, GP name, circuit, status description, and qualifying position for downstream aggregation.
+* [x] Build `int_standings_driver_eoy` — filter driver standings to only the final-round snapshot per season, producing exactly one row per (driver_id, year).
+* [x] Build `int_standings_constructor_eoy` — same for constructors (requires new `stg_kaggle_constructor_standings` staging model).
+* [x] Build `int_results_enriched` — fully joined result row with driver names, constructor names, GP name, circuit, status description, and qualifying position for downstream aggregation.
 
 ### Prerequisite Fix
-* Create the missing `stg_kaggle_constructor_standings.sql` staging model (raw table `processed_kaggle.constructor_standings` exists with 13,391 rows but has no staging model).
+* [x] Create the missing `stg_kaggle_constructor_standings.sql` staging model (raw table `processed_kaggle.constructor_standings` exists with 13,391 rows but has no staging model).
 
 ### Deliverables (9 intermediate models)
-1. `int_driver_bridge.sql`
-2. `int_constructor_bridge.sql`
-3. `int_race_bridge.sql`
-4. `int_results_unified.sql`
-5. `int_qualifying_unified.sql`
-6. `int_standings_driver_eoy.sql`
-7. `int_standings_constructor_eoy.sql`
-8. `int_pitstops_unified.sql`
-9. `int_results_enriched.sql`
+- [x] 1. `int_driver_bridge.sql`
+- [x] 2. `int_constructor_bridge.sql`
+- [x] 3. `int_race_bridge.sql`
+- [x] 4. `int_results_unified.sql`
+- [x] 5. `int_qualifying_unified.sql`
+- [x] 6. `int_standings_driver_eoy.sql`
+- [x] 7. `int_standings_constructor_eoy.sql`
+- [x] 8. `int_pitstops_unified.sql`
+- [x] 9. `int_results_enriched.sql`
 
 
 ## 4. Phase 3: dbt Transformation & Star Schema

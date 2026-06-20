@@ -8,3 +8,14 @@ logs/
 # Temporary files & dbt artifacts
 diff.txt
 f1-pipeline/warehouse/dbt/package-lock.yml
+# dbt artifacts (auto-generated, never commit)
+target/
+dbt_packages/
+logs/
+
+# dbt temporary files
+.user.yml
+partial_parse.msgpack
+*.duckdb
+*.duckdb-shm
+*.duckdb-wal
