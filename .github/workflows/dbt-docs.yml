@@ -1,0 +1,39 @@
+name: Generate dbt Docs
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'f1-pipeline/warehouse/dbt/**'
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dbt-duckdb
+        run: pip install dbt-duckdb
+      
+      - name: Generate dbt Docs
+        working-directory: f1-pipeline/warehouse/dbt
+        run: dbt docs generate
+      
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # dbt outputs the generated docs to the 'target' directory
+          publish_dir: f1-pipeline/warehouse/dbt/target
