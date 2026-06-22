@@ -1,15 +1,8 @@
-{{
-  config(
-    materialized='incremental',
-    unique_key=['year', 'driver_number', 'lap_number'],
-    meta={'owner': 'data-eng', 'domain': 'f1_racing', 'source': 'openf1'},
-    tags=['staging', 'openf1', 'telemetry', 'incremental', 'large'],
-    partition_by='year'
-  )
-}}
-
 with source as (
-    select * from {{ source('processed_openf1', 'laps') }}
+    select *,
+           row_number() over (partition by year, driver_number, lap_number 
+                              order by date_start desc) as rn
+    from {{ s3_source('processed_openf1', 'laps', 'openf1/laps/*/*.parquet') }}
     where year is not null
       and driver_number is not null
       and lap_number is not null
@@ -31,13 +24,7 @@ renamed as (
         current_timestamp                        as _dbt_loaded_at,
         'openf1'                                 as source_system
     from source
-    {% if is_incremental() %}
-    -- On incremental runs: only process (year, driver_number, lap_number) combos
-    -- not already present in the target table
-    where (year, driver_number, lap_number) not in (
-        select year, driver_number, lap_number from {{ this }}
-    )
-    {% endif %}
+    where rn = 1
 )
 
 select * from renamed

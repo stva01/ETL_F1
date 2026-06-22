@@ -1,0 +1,5 @@
+models\marts\facts\fct_lap_time.sql:    materialized='incremental',
+models\marts\facts\fct_pit_stop.sql:    materialized='incremental',
+models\marts\facts\fct_qualifying.sql:    materialized='incremental',
+models\marts\facts\fct_race_result.sql:    materialized='incremental',
+models\staging\openf1\stg_openf1_laps.sql:    materialized='incremental',

@@ -1,0 +1,4 @@
+C:\Satva\Tech\ETL_F1\f1-pipeline\warehouse\dbt\models\staging\sources.yml
+C:\Satva\Tech\ETL_F1\f1-pipeline\warehouse\dbt\models\staging\jolpica\schema.yml
+C:\Satva\Tech\ETL_F1\f1-pipeline\warehouse\dbt\models\staging\kaggle\schema.yml
+C:\Satva\Tech\ETL_F1\f1-pipeline\warehouse\dbt\models\staging\openf1\schema.yml

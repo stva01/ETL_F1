@@ -1,13 +1,5 @@
-{{
-  config(
-    materialized='table',
-    meta={'owner': 'data-eng', 'domain': 'f1_racing', 'source': 'kaggle'},
-    tags=['staging', 'kaggle', 'dimension']
-  )
-}}
-
 with source as (
-    select * from {{ source('s3_kaggle', 'circuits') }}
+    select * from {{ s3_source('s3_kaggle', 'circuits', 'kaggle/circuits/*.parquet') }}
 ),
 
 renamed as (
@@ -21,7 +13,7 @@ renamed as (
         cast(lng as double) as longitude,
         cast(alt as integer) as altitude_meters,
         cast(url as varchar) as wikipedia_url,
-        now() as _dbt_loaded_at,
+        {{ dbt.current_timestamp() }} as _dbt_loaded_at,
         'kaggle' as source_system
     from source
     where circuitId is not null

@@ -1,13 +1,5 @@
-{{
-  config(
-    materialized='table',
-    meta={'owner': 'data-eng', 'domain': 'f1_racing', 'source': 'kaggle', 'critical': true},
-    tags=['staging', 'kaggle', 'dimension', 'bridge']
-  )
-}}
-
 with source as (
-    select * from {{ source('s3_kaggle', 'drivers') }}
+    select * from {{ s3_source('s3_kaggle', 'drivers', 'kaggle/drivers/*.parquet') }}
 ),
 
 renamed as (
@@ -20,9 +12,9 @@ renamed as (
         concat(forename, ' ', surname) as full_name,
         cast(dob as date) as date_of_birth,
         cast(nationality as varchar) as nationality,
-        cast(NULLIF(number, '\N') as integer) as driver_number,
+        cast(nullif(cast(number as varchar), '\N') as integer) as driver_number,
         cast(url as varchar) as wikipedia_url,
-        now() as _dbt_loaded_at,
+        {{ dbt.current_timestamp() }} as _dbt_loaded_at,
         'kaggle' as source_system
     from source
     where driverId is not null

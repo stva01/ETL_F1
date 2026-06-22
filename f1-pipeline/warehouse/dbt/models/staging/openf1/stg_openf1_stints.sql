@@ -1,15 +1,5 @@
-{{
-  config(
-    materialized='table',
-    unique_key=['year', 'driver_number', 'stint_number'],
-    meta={'owner': 'data-eng', 'domain': 'f1_racing', 'source': 'openf1'},
-    tags=['staging', 'openf1', 'telemetry'],
-    partition_by='year'
-  )
-}}
-
 with source as (
-    select * from {{ source('processed_openf1', 'stints') }}
+    select * from {{ s3_source('processed_openf1', 'stints', 'openf1/stints/*/*.parquet') }}
 ),
 
 renamed as (

@@ -1,0 +1,6 @@
+error: unexpected argument '--list' found
+
+  tip: a similar argument exists: '--limit'
+
+
+For more information, try 'dbt test --limit --help'.

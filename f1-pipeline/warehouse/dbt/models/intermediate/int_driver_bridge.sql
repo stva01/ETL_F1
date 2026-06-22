@@ -36,6 +36,22 @@ with kaggle_drivers as (
 
 -- Deduplicate OpenF1 drivers: take the latest-year record per driver_number
 -- to get current team and colour
+openf1_ranked as (
+    select
+        cast(driver_number as integer)    as driver_number,
+        cast(driver_full_name as varchar)  as driver_full_name,
+        cast(driver_code as varchar)       as driver_code,
+        cast(country_code as varchar)      as country_code,
+        cast(team_name as varchar)         as team_name,
+        cast(team_colour as varchar)       as team_colour,
+        cast(year as integer)              as year,
+        row_number() over (
+            partition by cast(driver_number as integer)
+            order by cast(year as integer) desc
+        ) as rn
+    from {{ ref('stg_openf1_drivers') }}
+),
+
 openf1_latest as (
     select
         driver_number,
@@ -45,15 +61,7 @@ openf1_latest as (
         team_name          as current_team,
         team_colour        as team_colour,
         year               as openf1_year
-    from (
-        select
-            *,
-            row_number() over (
-                partition by driver_number
-                order by year desc
-            ) as rn
-        from {{ ref('stg_openf1_drivers') }}
-    ) ranked
+    from openf1_ranked
     where rn = 1
 ),
 
@@ -102,7 +110,7 @@ bridged as (
     from kaggle_drivers kd
     -- OpenF1: join on driver number (most reliable numeric link)
     left join openf1_latest of1
-        on kd.kaggle_driver_number = of1.driver_number
+        on cast(kd.kaggle_driver_number as bigint) = cast(of1.driver_number as bigint)
     -- Jolpica: join on driver_ref = jolpica driver_id string
     left join jolpica_refs jr
         on kd.driver_ref = jr.jolpica_driver_id

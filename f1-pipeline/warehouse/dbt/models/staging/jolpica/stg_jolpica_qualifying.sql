@@ -1,15 +1,5 @@
-{{
-  config(
-    materialized='table',
-    unique_key=['season_year', 'round', 'driver_id'],
-    meta={'owner': 'data-eng', 'domain': 'f1_racing', 'source': 'jolpica'},
-    tags=['staging', 'jolpica', 'event'],
-    partition_by='season'
-  )
-}}
-
 with source as (
-    select * from {{ source('processed_jolpica', 'qualifying') }}
+    select * from {{ s3_source('processed_jolpica', 'qualifying', 'jolpica/qualifying/*/*.parquet') }}
 ),
 
 renamed as (
@@ -28,7 +18,7 @@ renamed as (
         cast(driver_code as varchar) as driver_code,
         cast(constructor_id as varchar) as constructor_id,
         
-        now() as _dbt_loaded_at,
+        {{ dbt.current_timestamp() }} as _dbt_loaded_at,
         'jolpica' as source_system
     from source
     where season is not null

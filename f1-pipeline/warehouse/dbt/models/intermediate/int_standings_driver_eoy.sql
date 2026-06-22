@@ -20,41 +20,55 @@
     - stg_jolpica_driver_standings (2025+, keyed by season_year + round)
 */
 
-with kaggle_eoy as (
+with kaggle_ranked as (
+    select
+        cast(driver_id as integer)  as driver_id,
+        cast(race_id as integer)    as race_id,
+        cast(year as integer)       as year,
+        cast(position as integer)   as position,
+        cast(points as double)      as points,
+        cast(wins as integer)       as wins,
+        row_number() over (
+            partition by cast(year as integer), cast(driver_id as integer)
+            order by cast(race_id as integer) desc
+        ) as rn
+    from {{ ref('stg_kaggle_driver_standings') }}
+),
+
+kaggle_eoy as (
     select
         driver_id,
         year,
-        position          as championship_position,
-        points            as championship_points,
-        wins              as season_wins
-    from (
-        select
-            *,
-            row_number() over (
-                partition by year, driver_id
-                order by race_id desc      -- highest race_id = last race of season
-            ) as rn
-        from {{ ref('stg_kaggle_driver_standings') }}
-    ) ranked
+        position  as championship_position,
+        points    as championship_points,
+        wins      as season_wins
+    from kaggle_ranked
     where rn = 1
+),
+
+jolpica_ranked as (
+    select
+        cast(season_year as integer) as season_year,
+        cast(round as integer)       as round,
+        cast(driver_id as varchar)   as driver_id,
+        cast(position as integer)    as position,
+        cast(points as double)       as points,
+        cast(wins as integer)        as wins,
+        row_number() over (
+            partition by cast(season_year as integer), cast(driver_id as varchar)
+            order by cast(round as integer) desc
+        ) as rn
+    from {{ ref('stg_jolpica_driver_standings') }}
 ),
 
 jolpica_eoy as (
     select
-        db.driver_id,            -- resolved integer key
+        db.driver_id,
         ranked.season_year       as year,
         ranked.position          as championship_position,
         ranked.points            as championship_points,
         ranked.wins              as season_wins
-    from (
-        select
-            *,
-            row_number() over (
-                partition by season_year, driver_id
-                order by round desc        -- highest round = final round
-            ) as rn
-        from {{ ref('stg_jolpica_driver_standings') }}
-    ) ranked
+    from jolpica_ranked ranked
     inner join {{ ref('int_driver_bridge') }} db
         on ranked.driver_id = db.jolpica_driver_id
     where ranked.rn = 1

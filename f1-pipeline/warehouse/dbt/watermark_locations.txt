@@ -1,0 +1,2 @@
+C:\Satva\Tech\ETL_F1\f1-pipeline\warehouse\dbt\target\manifest.json
+C:\Satva\Tech\ETL_F1\f1-pipeline\warehouse\dbt\target\semantic_manifest.json

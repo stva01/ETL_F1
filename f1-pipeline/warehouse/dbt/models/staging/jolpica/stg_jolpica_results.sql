@@ -1,15 +1,5 @@
-{{
-  config(
-    materialized='table',
-    unique_key=['season_year', 'round', 'driver_id'],
-    meta={'owner': 'data-eng', 'domain': 'f1_racing', 'source': 'jolpica'},
-    tags=['staging', 'jolpica', 'event'],
-    partition_by='season'
-  )
-}}
-
 with source as (
-    select * from {{ source('processed_jolpica', 'results') }}
+    select * from {{ s3_source('processed_jolpica', 'results', 'jolpica/results/*/*.parquet') }}
 ),
 
 renamed as (
@@ -31,7 +21,7 @@ renamed as (
         cast(fastest_lap_speed as double) as fastest_lap_speed_kmh,
         cast(status as varchar) as race_status,
         
-        now() as _dbt_loaded_at,
+        {{ dbt.current_timestamp() }} as _dbt_loaded_at,
         'jolpica' as source_system
     from source
     where season is not null

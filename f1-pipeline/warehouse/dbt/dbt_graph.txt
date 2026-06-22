@@ -1,0 +1,4 @@
+error: unexpected argument '--graph' found
+
+
+For more information, try 'dbt ls --select --help'.

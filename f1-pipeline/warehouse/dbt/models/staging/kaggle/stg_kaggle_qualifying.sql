@@ -1,19 +1,10 @@
-{{
-  config(
-    materialized='table',
-    meta={'owner': 'data-eng', 'domain': 'f1_racing', 'source': 'kaggle'},
-    tags=['staging', 'kaggle', 'event'],
-    partition_by='year'
-  )
-}}
-
 with source as (
     select
         q.*,
         cast(r.year as integer) as year
-    from {{ source('s3_kaggle', 'qualifying') }} q
-    inner join {{ source('s3_kaggle', 'races') }} r
-        on q.raceId = r.raceId
+    from {{ s3_source('s3_kaggle', 'qualifying', 'kaggle/qualifying/*/*.parquet') }} q
+    inner join {{ s3_source('s3_kaggle', 'races', 'kaggle/races/*/*.parquet') }} r
+        on cast(q.raceId as bigint) = cast(r.raceId as bigint)
 ),
 
 renamed as (
@@ -32,7 +23,7 @@ renamed as (
 
         -- Partition column derived via JOIN (not correlated subquery)
         year,
-        now() as _dbt_loaded_at,
+        {{ dbt.current_timestamp() }} as _dbt_loaded_at,
         'kaggle' as source_system
     from source
     where raceId is not null
