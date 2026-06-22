@@ -1,24 +1,21 @@
-﻿# Editor & IDE
 .aider*
-.vscode/
-.idea/
+f1-pipeline/warehouse/dbt/profiles.yml
+f1-pipeline/warehouse/dbt/.user.yml
+f1-pipeline/warehouse/dbt/*.duckdb
+logs/
+*.duckdb
 
+# Temporary files & dbt artifacts
+diff.txt
+f1-pipeline/warehouse/dbt/package-lock.yml
 # dbt artifacts (auto-generated, never commit)
-/target/
-/dbt_packages/
-/docs/
-/logs/
+target/
+dbt_packages/
+logs/
 
 # dbt temporary files
 .user.yml
-profiles.yml
 partial_parse.msgpack
-
-# Database files
 *.duckdb
 *.duckdb-shm
 *.duckdb-wal
-
-# Build artifacts
-diff.txt
-package-lock.yml
