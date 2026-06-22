@@ -1,4 +1,4 @@
-import { queryDuckDB } from "@/lib/duckdb";
+import { querySnowflake } from "@/lib/snowflake";
 import CompareClient from "./CompareClient";
 
 export const revalidate = 0;
@@ -20,7 +20,7 @@ export interface DriverStat {
 
 export default async function ComparePage() {
   // Fetch top 100 drivers by race starts to show in the dropdown
-  const drivers = await queryDuckDB<DriverStat>(`
+  const drivers = await querySnowflake<DriverStat>(`
     SELECT 
       CAST(driver_key AS INTEGER) as driver_key,
       CAST(full_name AS VARCHAR) as full_name,
@@ -34,17 +34,17 @@ export default async function ComparePage() {
       CAST(total_points AS DOUBLE) as total_points,
       CAST(championship_titles AS INTEGER) as championship_titles,
       CAST(win_rate_pct AS DOUBLE) as win_rate_pct
-    FROM main_marts.mart_driver_career
+    FROM MARTS.mart_driver_career
     ORDER BY total_race_starts DESC
     LIMIT 100
   `);
 
   const driverKeys = drivers.map(d => d.driver_key).join(',');
-  const trendData = await queryDuckDB<{ driver_key: number, season_year: number, season_wins: number }>(`
+  const trendData = await querySnowflake<{ driver_key: number, season_year: number, season_wins: number }>(`
     SELECT CAST(driver_key AS INTEGER) as driver_key,
            CAST(season_year AS INTEGER) as season_year,
            CAST(season_wins AS INTEGER) as season_wins
-    FROM main_marts.mart_driver_season
+    FROM MARTS.mart_driver_season
     WHERE driver_key IN (${driverKeys})
   `);
 

@@ -10,10 +10,11 @@ sources:
   - name: s3_kaggle
     description: Historical F1 data from Kaggle Ergast database (1950-2024)
     # database: memory  # DuckDB uses 'memory' as default. Change to your project for BigQuery.
-    schema: processed_kaggle  # This is the DuckDB schema containing Kaggle tables
+    schema: "{{ 'staging' if target.type == 'snowflake' else 'processed_kaggle' }}"  # This is the DuckDB schema containing Kaggle tables
     
     tables:
       - name: circuits
+        identifier: "{{ 'kaggle_circuits' if target.type == 'snowflake' else 'circuits' }}"
         description: F1 race circuit/track information
         columns:
           - name: circuitId
@@ -39,6 +40,7 @@ sources:
             description: Wikipedia URL
 
       - name: constructors
+        identifier: "{{ 'kaggle_constructors' if target.type == 'snowflake' else 'constructors' }}"
         description: F1 team/constructor information
         columns:
           - name: constructorId
@@ -56,6 +58,7 @@ sources:
             description: Wikipedia URL
 
       - name: drivers
+        identifier: "{{ 'kaggle_drivers' if target.type == 'snowflake' else 'drivers' }}"
         description: F1 driver information and career stats
         columns:
           - name: driverId
@@ -81,6 +84,7 @@ sources:
             description: Current/last driver number (44 for Hamilton)
 
       - name: seasons
+        identifier: "{{ 'kaggle_seasons' if target.type == 'snowflake' else 'seasons' }}"
         description: F1 season reference (year, num races, etc)
         columns:
           - name: year
@@ -92,6 +96,7 @@ sources:
             description: Season Wikipedia URL
 
       - name: races
+        identifier: "{{ 'kaggle_races' if target.type == 'snowflake' else 'races' }}"
         description: F1 race metadata (one row per race ever held)
         columns:
           - name: raceId
@@ -115,6 +120,7 @@ sources:
             description: Wikipedia URL
 
       - name: results
+        identifier: "{{ 'kaggle_results' if target.type == 'snowflake' else 'results' }}"
         description: Race results (one row per driver per race, ~25k rows)
         columns:
           - name: resultId
@@ -155,6 +161,7 @@ sources:
             description: Foreign key to status codes
 
       - name: qualifying
+        identifier: "{{ 'kaggle_qualifying' if target.type == 'snowflake' else 'qualifying' }}"
         description: Qualifying session results (one row per driver per qualifying session)
         columns:
           - name: qualifyId
@@ -177,6 +184,7 @@ sources:
             description: Q3 time (mm:ss.mmm)
 
       - name: lap_times
+        identifier: "{{ 'kaggle_lap_times' if target.type == 'snowflake' else 'lap_times' }}"
         description: Lap-by-lap timing data (millions of rows - largest table)
         columns:
           - name: raceId
@@ -193,6 +201,7 @@ sources:
             description: Lap time in milliseconds
 
       - name: pit_stops
+        identifier: "{{ 'kaggle_pit_stops' if target.type == 'snowflake' else 'pit_stops' }}"
         description: Pit stop events during races
         columns:
           - name: raceId
@@ -211,6 +220,7 @@ sources:
             description: Duration in milliseconds
 
       - name: driver_standings
+        identifier: "{{ 'kaggle_driver_standings' if target.type == 'snowflake' else 'driver_standings' }}"
         description: Championship standings at each point in season (snapshot)
         columns:
           - name: driverStandingsId
@@ -229,6 +239,7 @@ sources:
             description: Wins so far in season
 
       - name: constructor_standings
+        identifier: "{{ 'kaggle_constructor_standings' if target.type == 'snowflake' else 'constructor_standings' }}"
         description: Constructor championship standings at each point in season
         columns:
           - name: constructorStandingsId
@@ -247,6 +258,7 @@ sources:
             description: Constructor wins so far
 
       - name: status
+        identifier: "{{ 'kaggle_status' if target.type == 'snowflake' else 'status' }}"
         description: Status codes for race results (DNF, DNS, Accident, etc)
         columns:
           - name: statusId
@@ -262,10 +274,11 @@ sources:
 
   - name: processed_jolpica
     description: Current F1 season data (Jolpica API, 2025+)
-    schema: processed_jolpica
+    schema: "{{ 'staging' if target.type == 'snowflake' else 'processed_jolpica' }}"
     
     tables:
       - name: results
+        identifier: "{{ 'jolpica_results' if target.type == 'snowflake' else 'results' }}"
         description: Race results from Jolpica
         columns:
           - name: season
@@ -282,6 +295,7 @@ sources:
               - not_null
 
       - name: qualifying
+        identifier: "{{ 'jolpica_qualifying' if target.type == 'snowflake' else 'qualifying' }}"
         description: Qualifying results from Jolpica
         columns:
           - name: season
@@ -298,6 +312,7 @@ sources:
               - not_null
 
       - name: pitstops
+        identifier: "{{ 'jolpica_pitstops' if target.type == 'snowflake' else 'pitstops' }}"
         description: Pit stop data from Jolpica
         columns:
           - name: season
@@ -310,6 +325,7 @@ sources:
               - not_null
 
       - name: driver_standings
+        identifier: "{{ 'jolpica_driver_standings' if target.type == 'snowflake' else 'driver_standings' }}"
         description: Driver championship standings from Jolpica
         columns:
           - name: season
@@ -330,6 +346,7 @@ sources:
               - not_null
 
       - name: constructor_standings
+        identifier: "{{ 'jolpica_constructor_standings' if target.type == 'snowflake' else 'constructor_standings' }}"
         description: Constructor championship standings from Jolpica
         columns:
           - name: season
@@ -342,6 +359,7 @@ sources:
               - not_null
 
       - name: sprint
+        identifier: "{{ 'jolpica_sprint' if target.type == 'snowflake' else 'sprint' }}"
         description: Sprint race results from Jolpica (2025+)
         columns:
           - name: season
@@ -365,10 +383,11 @@ sources:
 
   - name: processed_openf1
     description: Detailed telemetry data (OpenF1 API, 2023+)
-    schema: processed_openf1
+    schema: "{{ 'staging' if target.type == 'snowflake' else 'processed_openf1' }}"
     
     tables:
       - name: drivers
+        identifier: "{{ 'openf1_drivers' if target.type == 'snowflake' else 'drivers' }}"
         description: Driver telemetry metadata per session
         columns:
           - name: year
@@ -381,6 +400,7 @@ sources:
               - not_null
 
       - name: laps
+        identifier: "{{ 'openf1_laps' if target.type == 'snowflake' else 'laps' }}"
         description: Lap-by-lap telemetry with sector times and speed traps
         columns:
           - name: year
@@ -397,6 +417,7 @@ sources:
               - not_null
 
       - name: pit
+        identifier: "{{ 'openf1_pit' if target.type == 'snowflake' else 'pit' }}"
         description: Pit stop telemetry data (OpenF1, 2026+)
         columns:
           - name: year
@@ -413,6 +434,7 @@ sources:
               - not_null
 
       - name: stints
+        identifier: "{{ 'openf1_stints' if target.type == 'snowflake' else 'stints' }}"
         description: Tyre stint data (compound, lap range) per driver per session (OpenF1, 2026+)
         columns:
           - name: year

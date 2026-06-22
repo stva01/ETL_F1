@@ -1,57 +1,57 @@
-import { queryDuckDB } from "@/lib/duckdb";
+import { querySnowflake } from "@/lib/snowflake";
 import DriversCharts from "./DriversCharts";
 import { getFlagEmoji } from "@/lib/flags";
 
 export const revalidate = 0;
 
 export default async function DriversPage() {
-  const winsData = await queryDuckDB<{ label: string, value: number }>(`
+  const winsData = await querySnowflake<{ label: string, value: number }>(`
     SELECT full_name as label, CAST(total_wins AS INTEGER) as value 
-    FROM main_marts.mart_driver_career 
+    FROM MARTS.mart_driver_career 
     ORDER BY total_wins DESC NULLS LAST LIMIT 15
   `);
 
-  const polesData = await queryDuckDB<{ label: string, value: number }>(`
+  const polesData = await querySnowflake<{ label: string, value: number }>(`
     SELECT full_name as label, CAST(total_poles AS INTEGER) as value 
-    FROM main_marts.mart_driver_career 
+    FROM MARTS.mart_driver_career 
     ORDER BY total_poles DESC NULLS LAST LIMIT 15
   `);
 
-  const pointsData = await queryDuckDB<{ label: string, value: number }>(`
+  const pointsData = await querySnowflake<{ label: string, value: number }>(`
     SELECT full_name as label, CAST(total_points AS INTEGER) as value 
-    FROM main_marts.mart_driver_career 
+    FROM MARTS.mart_driver_career 
     ORDER BY total_points DESC NULLS LAST LIMIT 15
   `);
 
-  const podiumsData = await queryDuckDB<{ label: string, value: number }>(`
+  const podiumsData = await querySnowflake<{ label: string, value: number }>(`
     SELECT full_name as label, CAST(total_podiums AS INTEGER) as value 
-    FROM main_marts.mart_driver_career 
+    FROM MARTS.mart_driver_career 
     ORDER BY total_podiums DESC NULLS LAST LIMIT 15
   `);
 
-  const winRateData = await queryDuckDB<{ full_name: string, nationality: string, win_rate_pct: number, total_wins: number, total_race_starts: number }>(`
+  const winRateData = await querySnowflake<{ full_name: string, nationality: string, win_rate_pct: number, total_wins: number, total_race_starts: number }>(`
     SELECT full_name, CAST(nationality AS VARCHAR) as nationality, win_rate_pct, 
            CAST(total_wins AS INTEGER) as total_wins, CAST(total_race_starts AS INTEGER) as total_race_starts
-    FROM main_marts.mart_driver_career 
+    FROM MARTS.mart_driver_career 
     WHERE total_race_starts >= 50 AND win_rate_pct IS NOT NULL
     ORDER BY win_rate_pct DESC NULLS LAST LIMIT 10
   `);
 
-  const leaderboardData = await queryDuckDB<{ full_name: string, nationality: string, total_wins: number, total_podiums: number, championship_titles: number }>(`
+  const leaderboardData = await querySnowflake<{ full_name: string, nationality: string, total_wins: number, total_podiums: number, championship_titles: number }>(`
     SELECT full_name, CAST(nationality AS VARCHAR) as nationality,
            CAST(total_wins AS INTEGER) as total_wins, 
            CAST(total_podiums AS INTEGER) as total_podiums, 
            CAST(championship_titles AS INTEGER) as championship_titles 
-    FROM main_marts.mart_driver_career 
+    FROM MARTS.mart_driver_career 
     ORDER BY total_wins DESC NULLS LAST LIMIT 10
   `);
 
   const top3Names = leaderboardData.slice(0, 3).map(d => `'${d.full_name}'`).join(',');
-  const trendData = await queryDuckDB<{ full_name: string, season_year: number, season_poles: number, season_podiums: number }>(`
+  const trendData = await querySnowflake<{ full_name: string, season_year: number, season_poles: number, season_podiums: number }>(`
     SELECT full_name, CAST(season_year AS INTEGER) as season_year, 
            CAST(season_poles AS INTEGER) as season_poles, 
            CAST(season_podiums AS INTEGER) as season_podiums
-    FROM main_marts.mart_driver_season
+    FROM MARTS.mart_driver_season
     WHERE full_name IN (${top3Names})
     ORDER BY season_year ASC
   `);

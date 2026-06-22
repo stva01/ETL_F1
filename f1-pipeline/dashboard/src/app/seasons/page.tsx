@@ -1,4 +1,4 @@
-import { queryDuckDB } from "@/lib/duckdb";
+import { querySnowflake } from "@/lib/snowflake";
 import SeasonSelector from "./SeasonSelector";
 
 export const revalidate = 0;
@@ -7,9 +7,9 @@ export default async function SeasonsPage({ searchParams }: { searchParams: Prom
   const params = await searchParams;
   
   // Get all available seasons
-  const seasonsData = await queryDuckDB<{ season_year: number }>(`
+  const seasonsData = await querySnowflake<{ season_year: number }>(`
     SELECT DISTINCT CAST(season_year AS INTEGER) as season_year 
-    FROM main_marts.dim_race 
+    FROM MARTS.dim_race 
     ORDER BY season_year DESC
   `);
   const seasons = seasonsData.map(s => s.season_year);
@@ -17,23 +17,23 @@ export default async function SeasonsPage({ searchParams }: { searchParams: Prom
   const currentYear = params.year ? parseInt(params.year) : (seasons[0] || 2024);
 
   // Fetch Season Stats
-  const seasonStats = await queryDuckDB<any>(`
-    SELECT * FROM main_marts.mart_season_summary 
+  const seasonStats = await querySnowflake<any>(`
+    SELECT * FROM MARTS.mart_season_summary 
     WHERE season_year = ${currentYear} LIMIT 1
   `);
   const stats = seasonStats[0] || {};
 
   // Fetch Driver Standings
-  const driverStandings = await queryDuckDB<any>(`
-    SELECT * FROM main_marts.mart_driver_season 
+  const driverStandings = await querySnowflake<any>(`
+    SELECT * FROM MARTS.mart_driver_season 
     WHERE season_year = ${currentYear} 
     ORDER BY season_points DESC 
     LIMIT 20
   `);
 
   // Fetch Race Results
-  const raceResults = await queryDuckDB<any>(`
-    SELECT * FROM main_marts.mart_race_summary 
+  const raceResults = await querySnowflake<any>(`
+    SELECT * FROM MARTS.mart_race_summary 
     WHERE season_year = ${currentYear} 
     ORDER BY race_date ASC
   `);

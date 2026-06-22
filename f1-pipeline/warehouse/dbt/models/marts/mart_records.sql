@@ -189,15 +189,15 @@ youngest_winner as (
         'Youngest Race Winner'      as record_category,
         'driver'                    as record_type,
         d.full_name                 as holder_name,
-        date_diff('year', d.date_of_birth, dr.race_date)::decimal as record_value,
-        date_diff('year', d.date_of_birth, dr.race_date)::varchar as record_value_formatted,
+        DATEDIFF('year', d.date_of_birth, dr.race_date)::decimal as record_value,
+        DATEDIFF('year', d.date_of_birth, dr.race_date)::varchar as record_value_formatted,
         'Age at first race win'     as context_note
     from {{ ref('fct_race_result') }} fct
     join {{ ref('dim_driver') }} d  on fct.driver_key = d.driver_key
     join {{ ref('dim_race') }} dr   on fct.race_key  = dr.race_key
     where fct.is_winner = true
       and d.date_of_birth is not null
-    order by date_diff('year', d.date_of_birth, dr.race_date) asc
+    order by DATEDIFF('year', d.date_of_birth, dr.race_date) asc
     limit 1
 )
 

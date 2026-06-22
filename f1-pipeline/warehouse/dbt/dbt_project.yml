@@ -13,10 +13,7 @@ seed-paths: ["seeds"]
 macro-paths: ["macros"]
 snapshot-paths: ["snapshots"]
 
-on-run-start:
-  - "INSTALL httpfs; LOAD httpfs;"
-  - "INSTALL aws; LOAD aws;"
-  - "CALL load_aws_credentials();"
+
 
 clean-targets:
   - "target"
@@ -24,8 +21,9 @@ clean-targets:
 
 models:
   f1_analytics_warehouse:
+    +transient: true
     staging:
-      +materialized: "{{ 'view' if target.type == 'bigquery' else 'table' }}"
+      +materialized: "{{ 'view' if target.type == 'snowflake' else 'table' }}"
       +schema: staging
     intermediate:
       +materialized: table

@@ -1,4 +1,4 @@
-import { queryDuckDB } from "@/lib/duckdb";
+import { querySnowflake } from "@/lib/snowflake";
 
 export const revalidate = 0;
 
@@ -11,8 +11,8 @@ interface RecordItem {
 }
 
 export default async function RecordsPage() {
-  const allRecords = await queryDuckDB<RecordItem>(`
-    SELECT * FROM main_marts.mart_records 
+  const allRecords = await querySnowflake<RecordItem>(`
+    SELECT * FROM MARTS.mart_records 
     ORDER BY record_category, record_type
   `);
 

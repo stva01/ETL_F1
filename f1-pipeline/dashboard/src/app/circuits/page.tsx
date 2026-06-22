@@ -1,34 +1,34 @@
-import { queryDuckDB } from "@/lib/duckdb";
+import { querySnowflake } from "@/lib/snowflake";
 import CircuitsCharts from "./CircuitsCharts";
 
 export const revalidate = 0;
 
 export default async function CircuitsPage() {
-  const hostedData = await queryDuckDB<{ label: string, value: number }>(`
+  const hostedData = await querySnowflake<{ label: string, value: number }>(`
     SELECT CAST(circuit_name AS VARCHAR) as label, CAST(total_races_held AS INTEGER) as value 
-    FROM main_marts.mart_circuit_stats 
+    FROM MARTS.mart_circuit_stats 
     ORDER BY total_races_held DESC NULLS LAST LIMIT 15
   `);
 
-  const countryData = await queryDuckDB<{ label: string, value: number }>(`
+  const countryData = await querySnowflake<{ label: string, value: number }>(`
     SELECT CAST(country AS VARCHAR) as label, CAST(COUNT(*) AS INTEGER) as value 
-    FROM main_marts.mart_circuit_stats 
+    FROM MARTS.mart_circuit_stats 
     GROUP BY country 
     ORDER BY value DESC NULLS LAST LIMIT 8
   `);
 
-  const topCircuits = await queryDuckDB<{ circuit_name: string, country: string, total_races_held: number, most_wins_driver: string }>(`
+  const topCircuits = await querySnowflake<{ circuit_name: string, country: string, total_races_held: number, most_wins_driver: string }>(`
     SELECT CAST(circuit_name AS VARCHAR) as circuit_name, 
            CAST(country AS VARCHAR) as country, 
            CAST(total_races_held AS INTEGER) as total_races_held,
            CAST(most_wins_driver AS VARCHAR) as most_wins_driver
-    FROM main_marts.mart_circuit_stats 
+    FROM MARTS.mart_circuit_stats 
     ORDER BY total_races_held DESC NULLS LAST LIMIT 8
   `);
 
-  const fastestLapsData = await queryDuckDB<{ full_name: string, total_fastest_laps: number }>(`
+  const fastestLapsData = await querySnowflake<{ full_name: string, total_fastest_laps: number }>(`
     SELECT full_name, CAST(total_fastest_laps AS INTEGER) as total_fastest_laps
-    FROM main_marts.mart_driver_career
+    FROM MARTS.mart_driver_career
     ORDER BY total_fastest_laps DESC NULLS LAST LIMIT 10
   `);
 
