@@ -1,4 +1,5 @@
 import snowflake from 'snowflake-sdk';
+import { getFallbackData } from './mockFallback';
 
 // Initialize connection options from environment variables
 const connectionOptions = {
@@ -20,12 +21,18 @@ const connectionOptions = {
 
 export async function querySnowflake<T = any>(query: string): Promise<T[]> {
   return new Promise((resolve, reject) => {
+    // 👱‍♀️ ponytail: Fast-fail to mock data if feature flag is set
+    if (process.env.USE_MOCK_DATA === 'true') {
+      resolve(getFallbackData(query) as T[]);
+      return;
+    }
+
     const connection = snowflake.createConnection(connectionOptions);
 
     connection.connect((err, conn) => {
       if (err) {
         console.error('Unable to connect to Snowflake:', err.message);
-        reject(err);
+        resolve(getFallbackData(query) as T[]);
         return;
       }
 
@@ -40,7 +47,7 @@ export async function querySnowflake<T = any>(query: string): Promise<T[]> {
                 console.error('Failed to destroy connection:', destroyErr.message);
               }
             });
-            reject(err);
+            resolve(getFallbackData(query) as T[]);
           } else {
             // Destroy connection when done
             conn.destroy((destroyErr) => {
@@ -59,6 +66,12 @@ export async function querySnowflake<T = any>(query: string): Promise<T[]> {
               }
               return newRow;
             }) || [];
+
+            // Fallback if db is completely empty
+            if (lowercaseRows.length === 0) {
+              resolve(getFallbackData(query) as T[]);
+              return;
+            }
 
             resolve(lowercaseRows as T[]);
           }

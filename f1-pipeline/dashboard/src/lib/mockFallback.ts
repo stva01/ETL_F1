@@ -142,10 +142,151 @@ export function getFallbackData(sql: string): any[] {
     ];
   }
 
-  if (query.includes('MART_DRIVER_SEASON') && query.includes('IN')) {
+  if (query.includes('MART_DRIVER_SEASON') && query.includes(' IN (')) {
     // Return empty for trend data or some dummy data
     return [
       { full_name: 'Lewis Hamilton', season_year: 2020, season_poles: 10, season_podiums: 14 }
+    ];
+  }
+
+  // CONSTRUCTORS PAGE
+  if (query.includes('FERRARI_TITLES')) {
+    return [{ ferrari_titles: 16 }];
+  }
+  if (query.includes('FERRARI_WINS')) {
+    return [{ ferrari_wins: 243 }];
+  }
+  if (query.includes('MERCEDES_TITLES')) {
+    return [{ mercedes_titles: 8 }];
+  }
+  if (query.includes('REDBULL_TITLES')) {
+    return [{ redbull_titles: 6 }];
+  }
+  if (query.includes('TOP_WINS AS')) {
+    return [
+      { label: 'Ferrari', value: 243 }, { label: 'McLaren', value: 183 },
+      { label: 'Mercedes', value: 125 }, { label: 'Williams', value: 114 },
+      { label: 'Red Bull', value: 113 }, { label: 'Others', value: 334 }
+    ];
+  }
+  if (query.includes('MART_CONSTRUCTOR_CAREER') && query.includes('ORDER BY TOTAL_WINS DESC NULLS LAST LIMIT 10')) {
+    return [
+      { label: 'Ferrari', value: 243 }, { label: 'McLaren', value: 183 },
+      { label: 'Mercedes', value: 125 }, { label: 'Williams', value: 114 },
+      { label: 'Red Bull', value: 113 }, { label: 'Lotus', value: 79 },
+      { label: 'Brabham', value: 35 }, { label: 'Renault', value: 35 },
+      { label: 'Benetton', value: 27 }, { label: 'Tyrrell', value: 23 }
+    ];
+  }
+  if (query.includes('MART_CONSTRUCTOR_CAREER') && query.includes('ORDER BY CONSTRUCTOR_TITLES DESC NULLS LAST LIMIT 10')) {
+    return [
+      { label: 'Ferrari', value: 16 }, { label: 'Williams', value: 9 },
+      { label: 'McLaren', value: 8 }, { label: 'Mercedes', value: 8 },
+      { label: 'Lotus', value: 7 }, { label: 'Red Bull', value: 6 },
+      { label: 'Brabham', value: 2 }, { label: 'Renault', value: 2 },
+      { label: 'Benetton', value: 2 }, { label: 'Tyrrell', value: 1 }
+    ];
+  }
+  if (query.includes('MART_CONSTRUCTOR_SEASON') && query.includes(' IN (')) {
+    return [
+      { constructor_name: 'Ferrari', season_year: 2020, season_wins: 0, season_points: 131 },
+      { constructor_name: 'Mercedes', season_year: 2020, season_wins: 13, season_points: 573 },
+      { constructor_name: 'Red Bull', season_year: 2020, season_wins: 2, season_points: 319 }
+    ];
+  }
+
+  // COMPARE PAGE
+  if (query.includes('MART_DRIVER_CAREER') && query.includes('ORDER BY TOTAL_RACE_STARTS DESC')) {
+    return [
+      { driver_key: 1, full_name: 'Lewis Hamilton', nationality: 'British', debut_year: 2007, final_year: 2024, total_race_starts: 337, total_wins: 103, total_podiums: 197, total_poles: 104, total_points: 4698, championship_titles: 7, win_rate_pct: 30.6 },
+      { driver_key: 2, full_name: 'Michael Schumacher', nationality: 'German', debut_year: 1991, final_year: 2012, total_race_starts: 307, total_wins: 91, total_podiums: 155, total_poles: 68, total_points: 1566, championship_titles: 7, win_rate_pct: 29.7 }
+    ];
+  }
+
+  // CIRCUITS PAGE
+  if (query.includes('MART_CIRCUIT_STATS') && query.includes('GROUP BY COUNTRY')) {
+    return [
+      { label: 'Italy', value: 104 }, { label: 'Germany', value: 79 },
+      { label: 'United Kingdom', value: 74 }, { label: 'USA', value: 73 },
+      { label: 'Monaco', value: 70 }, { label: 'Belgium', value: 68 },
+      { label: 'France', value: 62 }, { label: 'Spain', value: 53 }
+    ];
+  }
+  if (query.includes('MART_CIRCUIT_STATS') && query.includes('ORDER BY TOTAL_RACES_HELD DESC')) {
+    if (query.includes('AS LABEL')) {
+      return [
+        { label: 'Monza', value: 73 }, { label: 'Monaco', value: 70 },
+        { label: 'Silverstone', value: 58 }, { label: 'Spa-Francorchamps', value: 56 },
+        { label: 'Circuit Gilles Villeneuve', value: 42 }, { label: 'Nürburgring', value: 41 },
+        { label: 'Interlagos', value: 40 }, { label: 'Suzuka', value: 33 },
+        { label: 'Hungaroring', value: 38 }, { label: 'Albert Park', value: 26 },
+        { label: 'Red Bull Ring', value: 19 }, { label: 'Catalunya', value: 33 },
+        { label: 'Imola', value: 30 }, { label: 'Zandvoort', value: 33 },
+        { label: 'Hockenheimring', value: 37 }
+      ];
+    } else {
+      return [
+        { circuit_name: 'Monza', country: 'Italy', total_races_held: 73, most_wins_driver: 'Michael Schumacher' },
+        { circuit_name: 'Monaco', country: 'Monaco', total_races_held: 70, most_wins_driver: 'Ayrton Senna' },
+        { circuit_name: 'Silverstone', country: 'UK', total_races_held: 58, most_wins_driver: 'Lewis Hamilton' },
+        { circuit_name: 'Spa-Francorchamps', country: 'Belgium', total_races_held: 56, most_wins_driver: 'Michael Schumacher' },
+        { circuit_name: 'Circuit Gilles Villeneuve', country: 'Canada', total_races_held: 42, most_wins_driver: 'Michael Schumacher' },
+        { circuit_name: 'Nürburgring', country: 'Germany', total_races_held: 41, most_wins_driver: 'Michael Schumacher' },
+        { circuit_name: 'Interlagos', country: 'Brazil', total_races_held: 40, most_wins_driver: 'Alain Prost' },
+        { circuit_name: 'Hungaroring', country: 'Hungary', total_races_held: 38, most_wins_driver: 'Lewis Hamilton' }
+      ];
+    }
+  }
+  if (query.includes('MART_DRIVER_CAREER') && query.includes('TOTAL_FASTEST_LAPS DESC')) {
+    return [
+      { full_name: 'Michael Schumacher', total_fastest_laps: 77 },
+      { full_name: 'Lewis Hamilton', total_fastest_laps: 65 },
+      { full_name: 'Kimi Räikkönen', total_fastest_laps: 46 },
+      { full_name: 'Alain Prost', total_fastest_laps: 41 },
+      { full_name: 'Sebastian Vettel', total_fastest_laps: 38 }
+    ];
+  }
+
+  // SEASONS PAGE
+  if (query.includes('DIM_RACE') && query.includes('DISTINCT')) {
+    return [{ season_year: 2024 }, { season_year: 2023 }, { season_year: 2022 }, { season_year: 2021 }];
+  }
+  if (query.includes('MART_SEASON_SUMMARY')) {
+    return [{ season_year: 2024, total_races: 24, driver_champion: 'Max Verstappen', constructor_champion: 'Red Bull' }];
+  }
+  if (query.includes('MART_DRIVER_SEASON') && query.includes('ORDER BY SEASON_POINTS DESC')) {
+    return [
+      { driver_name: 'Max Verstappen', season_points: 575, season_wins: 19 },
+      { driver_name: 'Sergio Perez', season_points: 285, season_wins: 2 },
+      { driver_name: 'Lewis Hamilton', season_points: 234, season_wins: 0 },
+      { driver_name: 'Fernando Alonso', season_points: 206, season_wins: 0 },
+      { driver_name: 'Charles Leclerc', season_points: 206, season_wins: 0 },
+      { driver_name: 'Lando Norris', season_points: 205, season_wins: 0 },
+      { driver_name: 'Carlos Sainz', season_points: 200, season_wins: 1 },
+      { driver_name: 'George Russell', season_points: 175, season_wins: 0 },
+      { driver_name: 'Oscar Piastri', season_points: 97, season_wins: 0 },
+      { driver_name: 'Lance Stroll', season_points: 74, season_wins: 0 }
+    ];
+  }
+  if (query.includes('MART_RACE_SUMMARY')) {
+    return [
+      { race_name: 'Bahrain Grand Prix', winning_driver: 'Max Verstappen', winning_constructor: 'Red Bull', pole_sitter_name: 'Max Verstappen', fastest_lap_driver: 'Max Verstappen' },
+      { race_name: 'Saudi Arabian Grand Prix', winning_driver: 'Sergio Perez', winning_constructor: 'Red Bull', pole_sitter_name: 'Sergio Perez', fastest_lap_driver: 'Max Verstappen' },
+      { race_name: 'Australian Grand Prix', winning_driver: 'Max Verstappen', winning_constructor: 'Red Bull', pole_sitter_name: 'Max Verstappen', fastest_lap_driver: 'Sergio Perez' },
+      { race_name: 'Azerbaijan Grand Prix', winning_driver: 'Sergio Perez', winning_constructor: 'Red Bull', pole_sitter_name: 'Charles Leclerc', fastest_lap_driver: 'George Russell' },
+      { race_name: 'Miami Grand Prix', winning_driver: 'Max Verstappen', winning_constructor: 'Red Bull', pole_sitter_name: 'Sergio Perez', fastest_lap_driver: 'Max Verstappen' }
+    ];
+  }
+
+  // RECORDS PAGE
+  if (query.includes('MART_RECORDS')) {
+    return [
+      { record_category: 'Most Championship Titles', record_type: 'Driver Championships', holder_name: 'Michael Schumacher', record_value_formatted: '7', context_note: 'Tied with Hamilton' },
+      { record_category: 'Most Race Wins', record_type: 'Total Wins', holder_name: 'Lewis Hamilton', record_value_formatted: '103', context_note: null },
+      { record_category: 'Most Wins in a Season', record_type: 'Season Wins', holder_name: 'Max Verstappen', record_value_formatted: '19', context_note: '2023 Season' },
+      { record_category: 'Most Pole Positions', record_type: 'Career Poles', holder_name: 'Lewis Hamilton', record_value_formatted: '104', context_note: null },
+      { record_category: 'Highest Win Rate', record_type: 'Win Percentage', holder_name: 'J.M. Fangio', record_value_formatted: '46.2%', context_note: 'Min 50 starts' },
+      { record_category: 'Most Fastest Laps', record_type: 'Career Fastest Laps', holder_name: 'Michael Schumacher', record_value_formatted: '77', context_note: null }
     ];
   }
 
