@@ -31,15 +31,18 @@ jobs:
             outputs:
               dev:
                 type: snowflake
-                account: "{{ env_var('DBT_SNOWFLAKE_ACCOUNT') }}"
-                user: "{{ env_var('DBT_SNOWFLAKE_USER') }}"
-                password: "{{ env_var('DBT_SNOWFLAKE_PASSWORD') }}"
-                role: "{{ env_var('DBT_SNOWFLAKE_ROLE') }}"
-                database: "{{ env_var('DBT_SNOWFLAKE_DATABASE') }}"
-                warehouse: "{{ env_var('DBT_SNOWFLAKE_WAREHOUSE') }}"
-                schema: "{{ env_var('DBT_SNOWFLAKE_SCHEMA') }}"
+                account: "${{ vars.DBT_SNOWFLAKE_ACCOUNT }}"
+                user: "${{ vars.DBT_SNOWFLAKE_USER }}"
+                password: "${{ secrets.DBT_SNOWFLAKE_PASSWORD }}"
+                role: "${{ vars.DBT_SNOWFLAKE_ROLE }}"
+                database: "${{ vars.DBT_SNOWFLAKE_DATABASE }}"
+                warehouse: "${{ vars.DBT_SNOWFLAKE_WAREHOUSE }}"
+                schema: "${{ vars.DBT_SNOWFLAKE_SCHEMA }}"
                 threads: 4
           EOF
+
+      - name: Debug profiles.yml
+        run: cat ~/.dbt/profiles.yml
 
       - name: Install dbt packages
         working-directory: f1-pipeline/warehouse/dbt
