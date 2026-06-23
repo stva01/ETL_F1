@@ -24,11 +24,11 @@ jobs:
 
       - name: Install dbt packages
         working-directory: f1-pipeline/warehouse/dbt
-        run: dbt deps
+        run: dbt deps --profiles-dir .
 
       - name: Execute dbt run
         working-directory: f1-pipeline/warehouse/dbt
-        run: dbt run
+        run: dbt run --profiles-dir .
         env:
           DBT_SNOWFLAKE_ACCOUNT: ${{ secrets.DBT_SNOWFLAKE_ACCOUNT }}
           DBT_SNOWFLAKE_USER: ${{ secrets.DBT_SNOWFLAKE_USER }}
