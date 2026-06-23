@@ -22,13 +22,32 @@ jobs:
           python -m pip install --upgrade pip
           pip install dbt-core dbt-snowflake
 
+      - name: Create profiles.yml
+        run: |
+          mkdir -p ~/.dbt
+          cat << 'EOF' > ~/.dbt/profiles.yml
+          f1_transform_profile:
+            target: dev
+            outputs:
+              dev:
+                type: snowflake
+                account: "{{ env_var('DBT_SNOWFLAKE_ACCOUNT') }}"
+                user: "{{ env_var('DBT_SNOWFLAKE_USER') }}"
+                password: "{{ env_var('DBT_SNOWFLAKE_PASSWORD') }}"
+                role: "{{ env_var('DBT_SNOWFLAKE_ROLE') }}"
+                database: "{{ env_var('DBT_SNOWFLAKE_DATABASE') }}"
+                warehouse: "{{ env_var('DBT_SNOWFLAKE_WAREHOUSE') }}"
+                schema: "{{ env_var('DBT_SNOWFLAKE_SCHEMA') }}"
+                threads: 4
+          EOF
+
       - name: Install dbt packages
         working-directory: f1-pipeline/warehouse/dbt
-        run: dbt deps --profiles-dir .
+        run: dbt deps
 
       - name: Execute dbt run
         working-directory: f1-pipeline/warehouse/dbt
-        run: dbt run --profiles-dir .
+        run: dbt run
         env:
           DBT_SNOWFLAKE_ACCOUNT: ${{ secrets.DBT_SNOWFLAKE_ACCOUNT }}
           DBT_SNOWFLAKE_USER: ${{ secrets.DBT_SNOWFLAKE_USER }}
