@@ -23,9 +23,11 @@ jobs:
           pip install dbt-core dbt-snowflake
 
       - name: Install dbt packages
+        working-directory: f1-pipeline/warehouse/dbt
         run: dbt deps
 
       - name: Execute dbt run
+        working-directory: f1-pipeline/warehouse/dbt
         run: dbt run
         env:
           DBT_SNOWFLAKE_ACCOUNT: ${{ secrets.DBT_SNOWFLAKE_ACCOUNT }}
