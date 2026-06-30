@@ -1,15 +1,17 @@
 # 🏎️ F1 Data Engineering Pipeline
 
-An end-to-end data engineering portfolio project that ingests Formula 1 data, transforms it, and serves it through interactive dashboards.
+An end-to-end data engineering portfolio project that ingests Formula 1 data, transforms it, and serves it through an MCP Server for AI agents to query.
 
 ---
 
 ## Architecture Overview
 
-```
-Kaggle (historical) ──┐                                          ┌──► Grafana
-                      ├──► S3 (raw) ──► AWS Glue ──► S3 (processed) ──► Snowflake ──┤
-OpenF1 + Jolpica ─────┘         (PySpark)                             (dbt)         └──► Ad-hoc SQL
+![Architecture Diagram](docs/architecture.png)
+
+```text
+Kaggle (historical) ──┐                                                              
+                      ├──► S3 (raw) ──► AWS Glue ──► S3 (processed) ──► Snowflake ──► MCP Server
+OpenF1 + Jolpica ─────┘  (idempotent)   (PySpark)     (idempotent)        (dbt)     (Agent Queries)
         APIs
 ```
 
@@ -66,5 +68,5 @@ OpenF1 + Jolpica ─────┘         (PySpark)                           
 - **Warehouse**: Snowflake
 - **Modelling**: dbt
 - **Orchestration**: Apache Airflow
-- **Visualisation**: Grafana
+- **Serving**: Snowflake MCP Server
 - **Infrastructure**: Terraform
