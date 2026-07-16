@@ -16,27 +16,26 @@ export default async function SeasonsPage({ searchParams }: { searchParams: Prom
   
   const currentYear = params.year ? parseInt(params.year) : (seasons[0] || 2024);
 
-  // Fetch Season Stats
-  const seasonStats = await querySnowflake<any>(`
-    SELECT * FROM MARTS.mart_season_summary 
-    WHERE season_year = ${currentYear} LIMIT 1
-  `);
+  // Fetch Season Stats, Driver Standings, and Race Results concurrently
+  const [seasonStats, driverStandings, raceResults] = await Promise.all([
+    querySnowflake<any>(`
+      SELECT * FROM MARTS.mart_season_summary 
+      WHERE season_year = ${currentYear} LIMIT 1
+    `),
+    querySnowflake<any>(`
+      SELECT * FROM MARTS.mart_driver_season 
+      WHERE season_year = ${currentYear} 
+      ORDER BY season_points DESC 
+      LIMIT 20
+    `),
+    querySnowflake<any>(`
+      SELECT * FROM MARTS.mart_race_summary 
+      WHERE season_year = ${currentYear} 
+      ORDER BY race_date ASC
+    `)
+  ]);
+
   const stats = seasonStats[0] || {};
-
-  // Fetch Driver Standings
-  const driverStandings = await querySnowflake<any>(`
-    SELECT * FROM MARTS.mart_driver_season 
-    WHERE season_year = ${currentYear} 
-    ORDER BY season_points DESC 
-    LIMIT 20
-  `);
-
-  // Fetch Race Results
-  const raceResults = await querySnowflake<any>(`
-    SELECT * FROM MARTS.mart_race_summary 
-    WHERE season_year = ${currentYear} 
-    ORDER BY race_date ASC
-  `);
 
   return (
     <main className="section active" id="seasons">
